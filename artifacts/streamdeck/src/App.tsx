@@ -11,6 +11,7 @@ import { Profiles } from "@/pages/Profiles";
 import { ActivityLog } from "@/pages/Activity";
 import { Stats } from "@/pages/Stats";
 import { Settings } from "@/pages/Settings";
+import { Connect } from "@/pages/Connect";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -29,6 +30,7 @@ function Router() {
       <Route path="/activity" component={ActivityLog} />
       <Route path="/stats" component={Stats} />
       <Route path="/settings" component={Settings} />
+      <Route path="/connect" component={Connect} />
       <Route component={NotFound} />
     </Switch>
   );

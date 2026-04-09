@@ -1,13 +1,13 @@
 import { ReactNode, useEffect } from "react";
 import { Link, useLocation } from "wouter";
-import { LayoutGrid, List, Activity, BarChart2, Settings } from "lucide-react";
+import { LayoutGrid, List, Activity, BarChart2, Settings, Smartphone } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
   { path: "/", icon: LayoutGrid, label: "Deck" },
   { path: "/profiles", icon: List, label: "Profiles" },
   { path: "/activity", icon: Activity, label: "Activity" },
-  { path: "/stats", icon: BarChart2, label: "Stats" },
+  { path: "/connect", icon: Smartphone, label: "Connect" },
   { path: "/settings", icon: Settings, label: "Settings" },
 ];
 
