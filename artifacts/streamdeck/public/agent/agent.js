@@ -71,7 +71,8 @@ function run(cmd, opts = {}) {
 // ── Helper: write PowerShell to temp file and execute ─────────────────────────
 async function runPsScript(script) {
   const tmpFile = path.join(os.tmpdir(), `sd_${Date.now()}.ps1`);
-  fs.writeFileSync(tmpFile, script, "utf8");
+  // Write UTF-8 BOM so PowerShell reads Unicode (Cyrillic etc.) correctly on any Windows locale
+  fs.writeFileSync(tmpFile, "\ufeff" + script, "utf8");
   try {
     return await run(`powershell -NoProfile -ExecutionPolicy Bypass -File "${tmpFile}"`);
   } finally {
