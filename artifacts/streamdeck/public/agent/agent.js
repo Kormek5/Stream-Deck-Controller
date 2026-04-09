@@ -707,19 +707,23 @@ async function handleExecute(button) {
       case "type": {
         if (!actionValue) break;
         if (platform === "win32") {
-          // Use PowerShell to type text via SendKeys
-          const safeText = actionValue.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+          // Copy to clipboard then paste — works for all Unicode including Cyrillic
+          // PS single-quoted strings use '' to escape a literal single quote
+          const psText = actionValue.replace(/'/g, "''");
           await runPsScript(
             `Add-Type -AssemblyName System.Windows.Forms\n` +
-            `$text = '${safeText}'\n` +
-            `[System.Windows.Forms.SendKeys]::SendWait($text)`
+            `[System.Windows.Forms.Clipboard]::SetText('${psText}')\n` +
+            `Start-Sleep -Milliseconds 150\n` +
+            `[System.Windows.Forms.SendKeys]::SendWait('^v')`
           );
         } else if (platform === "darwin") {
-          const safeText = actionValue.replace(/'/g, "\\'");
-          await exec(`osascript -e 'tell app "System Events" to type text "${safeText}"'`);
+          // Use clipboard+paste on macOS too — handles Unicode
+          const safe = actionValue.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+          await exec(`printf '%s' "${safe}" | pbcopy && osascript -e 'tell app "System Events" to keystroke "v" using command down'`);
         } else {
-          const safeText = actionValue.replace(/'/g, "\\'");
-          await exec(`xdotool type '${safeText}'`);
+          // xdotool type handles Unicode via --clearmodifiers
+          const safeText = actionValue.replace(/'/g, "'\\''");
+          await exec(`xdotool type --clearmodifiers --delay 20 '${safeText}'`);
         }
         console.log(`  → Typed text (${actionValue.length} chars)`);
         break;
@@ -728,27 +732,52 @@ async function handleExecute(button) {
       case "notification": {
         let notif = {};
         try { notif = JSON.parse(actionValue); } catch { notif = { title: label, message: actionValue }; }
-        const title = (notif.title || label || "StreamDeck").replace(/'/g, "\\'");
-        const message = (notif.message || "").replace(/'/g, "\\'");
+        const rawTitle   = notif.title   || label || "StreamDeck";
+        const rawMessage = notif.message || "";
+        // PS single-quoted strings: escape ' as ''
+        const title   = rawTitle.replace(/'/g, "''");
+        const message = rawMessage.replace(/'/g, "''");
         if (platform === "win32") {
+          // Use Windows 10+ WinRT Toast notification; fall back to NotifyIcon balloon
           await runPsScript(
-            `Add-Type -AssemblyName System.Windows.Forms\n` +
-            `$balloon = New-Object System.Windows.Forms.NotifyIcon\n` +
-            `$balloon.Icon = [System.Drawing.SystemIcons]::Information\n` +
-            `$balloon.BalloonTipIcon = [System.Windows.Forms.ToolTipIcon]::Info\n` +
-            `$balloon.BalloonTipTitle = '${title}'\n` +
-            `$balloon.BalloonTipText = '${message}'\n` +
-            `$balloon.Visible = $true\n` +
-            `$balloon.ShowBalloonTip(4000)\n` +
-            `Start-Sleep -Milliseconds 5000\n` +
-            `$balloon.Dispose()`
+            `$title   = '${title}'\n` +
+            `$message = '${message}'\n` +
+            `try {\n` +
+            `  [Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null\n` +
+            `  $template = [Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent(\n` +
+            `    [Windows.UI.Notifications.ToastTemplateType]::ToastText02)\n` +
+            `  $xml = [xml]$template.GetXml()\n` +
+            `  $xml.GetElementsByTagName('text')[0].AppendChild($xml.CreateTextNode($title))  | Out-Null\n` +
+            `  $xml.GetElementsByTagName('text')[1].AppendChild($xml.CreateTextNode($message)) | Out-Null\n` +
+            `  $xDoc = New-Object Windows.Data.Xml.Dom.XmlDocument\n` +
+            `  $xDoc.LoadXml($xml.OuterXml)\n` +
+            `  $toast = [Windows.UI.Notifications.ToastNotification]::new($xDoc)\n` +
+            `  [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('StreamDeck').Show($toast)\n` +
+            `} catch {\n` +
+            `  # Fallback: tray balloon\n` +
+            `  Add-Type -AssemblyName System.Windows.Forms\n` +
+            `  $b = New-Object System.Windows.Forms.NotifyIcon\n` +
+            `  $b.Icon = [System.Drawing.SystemIcons]::Information\n` +
+            `  $b.BalloonTipIcon  = [System.Windows.Forms.ToolTipIcon]::Info\n` +
+            `  $b.BalloonTipTitle = $title\n` +
+            `  $b.BalloonTipText  = $message\n` +
+            `  $b.Visible = $true\n` +
+            `  $b.ShowBalloonTip(4000)\n` +
+            `  Start-Sleep -Milliseconds 5000\n` +
+            `  $b.Dispose()\n` +
+            `}`
           );
         } else if (platform === "darwin") {
-          await exec(`osascript -e 'display notification "${message}" with title "${title}"'`);
+          // macOS: escape " for AppleScript
+          const t = (notif.title   || label || "StreamDeck").replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+          const m = (notif.message || "").replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+          await exec(`osascript -e 'display notification "${m}" with title "${t}"'`);
         } else {
-          await exec(`notify-send '${title}' '${message}'`);
+          const lnxTitle = rawTitle.replace(/'/g, "'\\''");
+          const lnxMsg   = rawMessage.replace(/'/g, "'\\''");
+          await exec(`notify-send '${lnxTitle}' '${lnxMsg}'`);
         }
-        console.log(`  → Notification shown: ${title}`);
+        console.log(`  → Notification shown: ${rawTitle}`);
         break;
       }
 
