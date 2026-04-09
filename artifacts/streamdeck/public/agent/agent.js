@@ -48,7 +48,8 @@ let WebSocket;
 try {
   WebSocket = require("ws");
 } catch {
-  console.error("❌  'ws' package not found. Run: npm install ws");
+  console.error("ERROR: 'ws' module not found in node_modules/");
+  console.error("Make sure you extracted the full ZIP (including node_modules folder).");
   process.exit(1);
 }
 

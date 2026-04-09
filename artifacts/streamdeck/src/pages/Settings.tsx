@@ -60,44 +60,33 @@ export function Settings() {
   const serverUrl = window.location.origin.replace(/\/$/, "");
 
   function downloadBat() {
+    // ASCII ONLY - no Cyrillic, no Unicode - guaranteed to work on any Windows
     const content = `@echo off
-chcp 65001 >nul
-:: Go to the folder where this bat file lives
 cd /d "%~dp0"
 title StreamDeck Agent
+
 echo ====================================
 echo   StreamDeck Local Agent - Windows
 echo ====================================
 echo.
 
-:: Check Node.js
 where node >nul 2>&1
 if %errorlevel% neq 0 (
-  echo ОШИБКА: Node.js не установлен!
+  echo ERROR: Node.js is not installed.
   echo.
-  echo Скачай с https://nodejs.org
-  echo Нажми большую кнопку LTS, установи, потом запусти этот файл снова.
+  echo Download from https://nodejs.org
+  echo Click the big LTS button, install, then run this file again.
   echo.
   start https://nodejs.org
   pause
   exit /b 1
 )
 
-echo Шаг 1/2: Устанавливаю зависимости...
-call npm install
-if %errorlevel% neq 0 (
-  echo.
-  echo ОШИБКА: npm install не удался. Проверь интернет и попробуй снова.
-  pause
-  exit /b 1
-)
-
+echo Starting agent...
+echo Server: ${serverUrl}
 echo.
-echo Шаг 2/2: Запускаю агента...
-echo Сервер: ${serverUrl}
-echo.
-echo Агент работает! Не закрывай это окно.
-echo Чтобы остановить - нажми Ctrl+C
+echo Agent is running! Do not close this window.
+echo To stop - press Ctrl+C
 echo.
 node agent.js --server ${serverUrl}
 pause
@@ -216,7 +205,7 @@ node agent.js --server ${serverUrl}
                 Скачать streamdeck-agent.zip
               </Button>
             </a>
-            <p className="text-xs text-muted-foreground">Распакуй в любую папку на компьютере.</p>
+            <p className="text-xs text-muted-foreground">Распакуй в любую папку на компьютере. Все зависимости уже включены — <code className="font-mono">npm install</code> не нужен.</p>
           </div>
 
           {/* ─── STEP 3: Download run script ─── */}
