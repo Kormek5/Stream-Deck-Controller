@@ -309,8 +309,8 @@ export function ButtonEditorModal({ open, onOpenChange, profileId, button, folde
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[440px] bg-card border-border text-foreground">
-        <DialogHeader>
+      <DialogContent className="sm:max-w-[440px] bg-card border-border text-foreground max-h-[92vh] flex flex-col p-0">
+        <DialogHeader className="px-6 pt-6 pb-2 shrink-0">
           <DialogTitle>{button ? "Edit Button" : "Create Button"}</DialogTitle>
           <DialogDescription>
             Configure what this button does when pressed.
@@ -318,7 +318,9 @@ export function ButtonEditorModal({ open, onOpenChange, profileId, button, folde
         </DialogHeader>
 
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col flex-1 min-h-0">
+          <ScrollArea className="flex-1 px-6">
+          <div className="space-y-4 py-2 pb-4">
             <FormField
               control={form.control}
               name="label"
@@ -435,7 +437,7 @@ export function ButtonEditorModal({ open, onOpenChange, profileId, button, folde
                         <SelectValue placeholder="Select action type" />
                       </SelectTrigger>
                     </FormControl>
-                    <SelectContent>
+                    <SelectContent className="max-h-[280px] overflow-y-auto">
                       {Object.entries(
                         ACTION_TYPES.reduce<Record<string, typeof ACTION_TYPES>>((acc, t) => {
                           (acc[t.group] ??= []).push(t);
@@ -509,7 +511,10 @@ export function ButtonEditorModal({ open, onOpenChange, profileId, button, folde
               />
             )}
 
-            <div className="flex items-center justify-between pt-2">
+          </div>
+          </ScrollArea>
+
+            <div className="flex items-center justify-between px-6 py-4 border-t border-border shrink-0">
               {button ? (
                 <Button
                   type="button"
