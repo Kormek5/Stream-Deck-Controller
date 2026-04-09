@@ -54,10 +54,24 @@ export function Dashboard() {
       setEditorOpen(true);
       return;
     }
+    // URL buttons: open directly in the current browser too
+    if (button.actionType === "url" && button.actionValue) {
+      window.open(button.actionValue, "_blank", "noopener,noreferrer");
+    }
     try {
       const result = await executeButton.mutateAsync({ id: button.id });
       if (result.success) {
-        toast({ title: "Executed", description: result.message, duration: 2000 });
+        const noAgent = (result as any).agentsSent === 0;
+        const needsAgent = !["url"].includes(button.actionType);
+        if (noAgent && needsAgent) {
+          toast({
+            title: "No agent connected",
+            description: "Action requires the desktop agent. Go to Settings to set it up.",
+            duration: 4000,
+          });
+        } else {
+          toast({ title: "✓", description: result.message, duration: 1500 });
+        }
       } else {
         toast({ title: "Failed", description: result.message, variant: "destructive" });
       }

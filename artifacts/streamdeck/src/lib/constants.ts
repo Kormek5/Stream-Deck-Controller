@@ -8,11 +8,12 @@ import {
   Send, FileText, Chrome, Cpu, Lock, Moon, RefreshCw, Folder,
   Clipboard, Volume1, Search, BellOff, Bell, PhoneCall, PhoneOff,
   Hand, ScreenShare, PlusCircle, ExternalLink, BookOpen, Edit,
-  Sparkles, Code2, Mail, FolderOpen, Twitter
+  Sparkles, Code2, Mail, FolderOpen, Twitter, Layers
 } from "lucide-react";
 
 export const ACTION_TYPES = [
   // General
+  { value: "multi" as const,   label: "Multi-Action",         icon: Layers,       group: "General" },
   { value: "url" as const,     label: "Open URL",              icon: Globe,        group: "General" },
   { value: "hotkey" as const,  label: "Hotkey / Shortcut",    icon: Keyboard,     group: "General" },
   { value: "script" as const,  label: "Run Script / Command", icon: Terminal,     group: "General" },

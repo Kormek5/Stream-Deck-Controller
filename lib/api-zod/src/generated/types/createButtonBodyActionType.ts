@@ -38,4 +38,5 @@ export const CreateButtonBodyActionType = {
   x: "x",
   chatgpt: "chatgpt",
   airdrop: "airdrop",
+  multi: "multi",
 } as const;

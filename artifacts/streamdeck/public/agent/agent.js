@@ -480,6 +480,24 @@ async function handleExecute(button) {
         break;
       }
 
+      case "multi": {
+        let steps;
+        try { steps = JSON.parse(actionValue); } catch { steps = []; }
+        if (!Array.isArray(steps)) steps = [];
+        for (let stepIdx = 0; stepIdx < steps.length; stepIdx++) {
+          const step = steps[stepIdx];
+          if (!step || !step.type) continue;
+          console.log(`  ↳ Step ${stepIdx + 1}/${steps.length}: [${step.type}] ${step.value || ""}`);
+          // Re-use main handler by constructing a synthetic button
+          await handleExecute({ actionType: step.type, actionValue: step.value || "", label: `Step ${stepIdx + 1}` });
+          // Small delay between steps
+          if (stepIdx < steps.length - 1) {
+            await new Promise(r => setTimeout(r, 200));
+          }
+        }
+        break;
+      }
+
       default: {
         // Try to get a URL for it and open in browser
         const url = getActionUrl(actionType, actionValue);

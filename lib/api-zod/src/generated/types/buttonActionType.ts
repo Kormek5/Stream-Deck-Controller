@@ -38,4 +38,5 @@ export const ButtonActionType = {
   x: "x",
   chatgpt: "chatgpt",
   airdrop: "airdrop",
+  multi: "multi",
 } as const;

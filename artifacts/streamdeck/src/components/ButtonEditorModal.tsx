@@ -41,14 +41,14 @@ import {
   serializeCompositeValue,
   parseCompositeValue,
 } from "@/lib/constants";
-import { Trash2, Info } from "lucide-react";
+import { Trash2, Info, Plus, X } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 const formSchema = z.object({
   label: z.string().min(1, "Label is required").max(20),
   icon: z.string().min(1, "Icon is required"),
   color: z.string().min(1, "Color is required"),
-  actionType: z.enum(["url", "hotkey", "script", "vpn", "steam", "app", "media", "obs", "github", "twitch", "zoom", "discord", "spotify", "slack", "teams", "telegram", "notion", "browser", "system", "googlemeet", "vscode", "youtube", "gmail", "whatsapp", "figma", "x", "chatgpt", "airdrop"]),
+  actionType: z.enum(["url", "hotkey", "script", "vpn", "steam", "app", "media", "obs", "github", "twitch", "zoom", "discord", "spotify", "slack", "teams", "telegram", "notion", "browser", "system", "googlemeet", "vscode", "youtube", "gmail", "whatsapp", "figma", "x", "chatgpt", "airdrop", "multi"]),
   actionValue: z.string(),
   position: z.number().int().min(0).max(29),
 });
@@ -62,6 +62,108 @@ interface Props {
   folders?: Array<{ id: number; name: string; color: string }>;
 }
 
+// ── Multi-Action Step Editor ──────────────────────────────────────────────────
+
+interface MultiStep { type: string; value: string }
+
+function parseMultiSteps(raw: string): MultiStep[] {
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed) && parsed.length > 0) return parsed as MultiStep[];
+  } catch {}
+  return [{ type: "hotkey", value: "" }];
+}
+
+const NON_MULTI_TYPES = ACTION_TYPES.filter(t => t.value !== "multi");
+const NON_MULTI_GROUPS = Object.entries(
+  NON_MULTI_TYPES.reduce<Record<string, typeof ACTION_TYPES>>((acc, t) => {
+    (acc[t.group] ??= []).push(t);
+    return acc;
+  }, {})
+);
+
+function MultiActionEditor({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const steps = parseMultiSteps(value);
+
+  const commit = (next: MultiStep[]) => onChange(JSON.stringify(next));
+
+  const updateType = (i: number, type: string) => {
+    const next = steps.map((s, idx) => idx === i ? { type, value: "" } : s);
+    commit(next);
+  };
+
+  const updateValue = (i: number, val: string) => {
+    const next = steps.map((s, idx) => idx === i ? { ...s, value: val } : s);
+    commit(next);
+  };
+
+  const addStep = () => commit([...steps, { type: "hotkey", value: "" }]);
+
+  const removeStep = (i: number) => {
+    const next = steps.filter((_, idx) => idx !== i);
+    commit(next.length > 0 ? next : [{ type: "hotkey", value: "" }]);
+  };
+
+  return (
+    <div className="space-y-2">
+      {steps.map((step, i) => (
+        <div key={i} className="border border-border rounded-lg p-3 space-y-2 bg-muted/10">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-[10px] font-mono font-bold text-primary uppercase tracking-wider">
+              Step {i + 1}
+            </span>
+            {steps.length > 1 && (
+              <button
+                type="button"
+                onClick={() => removeStep(i)}
+                className="text-muted-foreground hover:text-destructive transition-colors"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+          <Select value={step.type} onValueChange={(v) => updateType(i, v)}>
+            <SelectTrigger className="bg-input border-border h-8 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="max-h-[200px] overflow-y-auto">
+              {NON_MULTI_GROUPS.map(([group, types]) => (
+                <SelectGroup key={group}>
+                  <SelectLabel className="text-[10px] text-muted-foreground uppercase tracking-wider py-1">
+                    {group}
+                  </SelectLabel>
+                  {types.map((type) => {
+                    const Icon = type.icon;
+                    return (
+                      <SelectItem key={type.value} value={type.value} className="text-xs">
+                        <div className="flex items-center gap-2">
+                          <Icon className="w-3 h-3" />
+                          {type.label}
+                        </div>
+                      </SelectItem>
+                    );
+                  })}
+                </SelectGroup>
+              ))}
+            </SelectContent>
+          </Select>
+          <ActionValueField actionType={step.type} value={step.value} onChange={(v) => updateValue(i, v)} />
+        </div>
+      ))}
+      <button
+        type="button"
+        onClick={addStep}
+        className="w-full flex items-center justify-center gap-1.5 border border-dashed border-border rounded-lg py-2 text-xs text-muted-foreground hover:text-foreground hover:border-primary/50 transition-colors"
+      >
+        <Plus className="w-3.5 h-3.5" />
+        Add step
+      </button>
+    </div>
+  );
+}
+
+// ── Action Value Field ────────────────────────────────────────────────────────
+
 function ActionValueField({
   actionType,
   value,
@@ -71,6 +173,10 @@ function ActionValueField({
   value: string;
   onChange: (v: string) => void;
 }) {
+  if (actionType === "multi") {
+    return <MultiActionEditor value={value} onChange={onChange} />;
+  }
+
   const config = ACTION_VALUE_CONFIG[actionType];
 
   if (!config) {

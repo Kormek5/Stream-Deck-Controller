@@ -471,6 +471,13 @@ router.post("/buttons/:id/execute", async (req, res) => {
       message = `AirDrop: Share file`;
       break;
     }
+    case "multi": {
+      let steps: Array<{ type: string; value: string }> = [];
+      try { steps = JSON.parse(button.actionValue); } catch {}
+      const stepCount = Array.isArray(steps) ? steps.length : 0;
+      message = `Multi-action: ${stepCount} step${stepCount !== 1 ? "s" : ""} (${button.label})`;
+      break;
+    }
     default:
       message = `Action executed: ${button.label}`;
   }
