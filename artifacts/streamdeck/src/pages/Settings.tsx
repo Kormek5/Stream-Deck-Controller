@@ -62,6 +62,8 @@ export function Settings() {
   function downloadBat() {
     const content = `@echo off
 chcp 65001 >nul
+:: Go to the folder where this bat file lives
+cd /d "%~dp0"
 title StreamDeck Agent
 echo ====================================
 echo   StreamDeck Local Agent - Windows
@@ -71,30 +73,30 @@ echo.
 :: Check Node.js
 where node >nul 2>&1
 if %errorlevel% neq 0 (
-  echo [ОШИБКА] Node.js не установлен!
+  echo ОШИБКА: Node.js не установлен!
   echo.
   echo Скачай с https://nodejs.org
-  echo Нажми большую кнопку "LTS", установи, потом запусти этот файл снова.
+  echo Нажми большую кнопку LTS, установи, потом запусти этот файл снова.
   echo.
   start https://nodejs.org
   pause
   exit /b 1
 )
 
-echo [1/2] Устанавливаю зависимости...
+echo Шаг 1/2: Устанавливаю зависимости...
 call npm install
 if %errorlevel% neq 0 (
   echo.
-  echo [ОШИБКА] npm install не удался. Проверь интернет и попробуй снова.
+  echo ОШИБКА: npm install не удался. Проверь интернет и попробуй снова.
   pause
   exit /b 1
 )
 
 echo.
-echo [2/2] Запускаю агента...
+echo Шаг 2/2: Запускаю агента...
 echo Сервер: ${serverUrl}
 echo.
-echo Агент подключён! Не закрывай это окно.
+echo Агент работает! Не закрывай это окно.
 echo Чтобы остановить - нажми Ctrl+C
 echo.
 node agent.js --server ${serverUrl}

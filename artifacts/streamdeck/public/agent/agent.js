@@ -35,9 +35,9 @@ const platform = process.platform; // 'win32' | 'darwin' | 'linux'
 const hostname = os.hostname();
 
 console.log(`
-╔═══════════════════════════════════════╗
-║   StreamDeck Local Agent  v1.0        ║
-╚═══════════════════════════════════════╝
+========================================
+   StreamDeck Local Agent  v1.0
+========================================
   Platform : ${platform}
   Hostname : ${hostname}
   Server   : ${serverUrl}
