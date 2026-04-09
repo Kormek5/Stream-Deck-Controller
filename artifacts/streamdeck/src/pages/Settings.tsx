@@ -83,7 +83,7 @@ export function Settings() {
             )}
           </CardTitle>
           <CardDescription>
-            Download and run the agent on your PC to execute real system commands — hotkeys, apps, media keys, and more.
+            The StreamDeck panel opens on any device — phone, tablet, PC. To execute real system commands (hotkeys, apps, media keys), also run the agent on your PC.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-5">
@@ -109,9 +109,18 @@ export function Settings() {
             </Button>
           </div>
 
+          {/* Architecture note */}
+          <div className="flex items-start gap-2 text-xs text-muted-foreground bg-primary/5 border border-primary/20 rounded-lg p-3">
+            <span className="text-lg leading-none">📱</span>
+            <div>
+              <span className="text-foreground font-medium">Phone / tablet:</span> just open this URL in any browser — no setup needed.<br />
+              <span className="text-foreground font-medium">PC agent:</span> install once on the computer where commands should run.
+            </div>
+          </div>
+
           {/* Download section */}
           <div className="space-y-3">
-            <p className="text-sm font-mono uppercase text-muted-foreground tracking-wide">Quick Setup — 3 steps</p>
+            <p className="text-sm font-mono uppercase text-muted-foreground tracking-wide">PC Agent Setup — 3 steps</p>
 
             <div className="space-y-2">
               {/* Step 1 */}
