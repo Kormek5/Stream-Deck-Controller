@@ -2,50 +2,82 @@
 
 Runs on your PC and executes real system commands when buttons are pressed.
 
+## Requirements
+
+- Node.js 18+ — download at https://nodejs.org
+- Windows 10+, macOS 12+, or Linux
+
 ## Quick Start
 
-```bash
-# 1. Install the one dependency
-npm install
+> **`node_modules` is already bundled in the ZIP — no `npm install` needed.**
 
-# 2. Start the agent (replace with your StreamDeck server URL)
-node agent.js --server https://your-app.replit.app
+### Windows
 
-# Or for local development:
-node agent.js --server http://localhost:3001
+1. Extract the ZIP to any folder (e.g. `C:\streamdeck-agent\`)
+2. Double-click **`start.bat`**
+3. Paste your server URL when prompted (shown in StreamDeck panel → Settings → Connect tab)
+
+Or run from Command Prompt:
+```
+cd C:\streamdeck-agent
+start.bat https://your-server.replit.app
 ```
 
-The agent will auto-reconnect if the connection drops.
+### macOS / Linux
+
+1. Extract the ZIP
+2. Open Terminal in the extracted folder
+3. Run:
+```bash
+chmod +x start.sh
+./start.sh https://your-server.replit.app
+```
+
+### Manual (any platform)
+
+```bash
+cd path/to/streamdeck-agent
+node agent.js --server https://your-server.replit.app
+```
+
+**Important:** Always run from inside the extracted folder so Node.js can find the bundled `node_modules/ws`.
+
+## OBS WebSocket (optional)
+
+To control OBS Studio, pass the WebSocket password:
+
+```bash
+node agent.js --server https://your-server.replit.app --obs-password yourPassword
+```
+
+Enable OBS WebSocket: **OBS → Tools → WebSocket Server Settings → Enable WebSocket server**
 
 ## What it can do
 
-| Action Type | What happens on your PC |
-|-------------|------------------------|
-| Open URL | Opens in your default browser |
-| Hotkey | Sends keyboard shortcut to OS |
-| Script | Runs shell command / script |
-| Launch App | Opens the application |
-| Media Control | Play/Pause/Next/Volume via OS media keys |
-| System | Lock, Sleep, Shutdown, Screenshot, etc. |
-| Zoom | Mute/video/screenshare via Zoom hotkeys |
-| Discord | Mute/deafen via Discord hotkeys |
-| Slack | Open channels, DND toggle |
-| Spotify | Playback control via Spotify hotkeys |
-| VS Code | Editor commands via hotkeys |
-| Teams | Meeting controls via Teams hotkeys |
-| All others | Opens the app's URL scheme or website |
+| Action Type     | What happens on your PC                           |
+|-----------------|---------------------------------------------------|
+| Open URL        | Opens in your default browser                     |
+| Hotkey          | Sends keyboard shortcut to OS                     |
+| Script          | Runs shell command / PowerShell / bash script     |
+| Type Text       | Types text via clipboard paste (supports Unicode) |
+| Notification    | Shows a system desktop notification               |
+| Clipboard       | Copy text / date / time to clipboard, or paste    |
+| Launch App      | Opens the application                             |
+| Media Control   | Play/Pause/Next/Volume via OS media keys          |
+| System          | Lock, Sleep, Shutdown, Screenshot, Record, etc.   |
+| OBS             | Start/stop recording, streaming, switch scene     |
+| Zoom            | Mute/video/screenshare via Zoom hotkeys           |
+| Discord         | Mute/deafen via Discord hotkeys                   |
+| Spotify         | Playback control via Spotify hotkeys              |
+| VS Code         | Editor commands via hotkeys                       |
+| Multi-action    | Sequential steps with per-step delays             |
 
-## Requirements
+## Troubleshooting
 
-- Node.js 18+
-- `npm install` (installs `ws` WebSocket client)
-- Platform: Windows, macOS, or Linux
+**`ERROR: 'ws' module not found`**  
+You are running `node agent.js` from outside the extracted folder.  
+Fix: `cd` into the `streamdeck-agent` folder first, then run `node agent.js`.  
+Or simply use `start.bat` (Windows) / `start.sh` (macOS/Linux) — they handle this automatically.
 
-## Compile to a single executable (optional)
-
-```bash
-npm install -g pkg
-pkg agent.js --targets node18-win-x64,node18-mac-x64,node18-linux-x64
-```
-
-This creates standalone `.exe` / binary files that don't need Node.js installed.
+**`Cannot connect to server`**  
+Check that the StreamDeck panel is running and the URL is correct (Settings → Connect tab).
