@@ -325,7 +325,12 @@ async function obsRequest(requestType, requestData = {}) {
         else finish(new Error(`OBS error: ${d.requestStatus.comment || d.requestStatus.code}`));
       }
     });
-    ws.on("error", (err) => finish(new Error(`OBS WebSocket: ${err.message}`)));
+    ws.on("error", (err) => {
+      // Build a descriptive message — err.message is sometimes empty on Windows
+      const detail = err.message || err.code || err.syscall || String(err);
+      const code   = err.code ? ` [${err.code}]` : "";
+      finish(new Error(`OBS WebSocket: ${detail}${code}`));
+    });
     ws.on("close", () => { if (!done) finish(new Error("OBS WebSocket closed unexpectedly")); });
   });
 }
@@ -618,15 +623,20 @@ async function handleExecute(button) {
             console.log(`  → OBS: ${cmd} OK`);
           } catch (obsErr) {
             const msg = obsErr.message || String(obsErr);
-            // Determine root cause and give actionable advice
-            if (msg.includes("ECONNREFUSED") || msg.includes("not available") || msg.includes("closed")) {
-              console.error(`  ⚠️  OBS WebSocket not reachable on port ${obsPort}`);
-              console.error(`      → Make sure OBS is running and WebSocket server is enabled:`);
-              console.error(`         OBS → Tools → WebSocket Server Settings → Enable WebSocket server`);
-              console.error(`      → Check port (default 4455) and password in Settings → Connect tab`);
-            } else if (msg.includes("Authentication")) {
+            const isConnRefused  = msg.includes("ECONNREFUSED") || msg.includes("not available") || obsErr.code === "ECONNREFUSED";
+            const isClosedEmpty  = msg.includes("closed") || msg === "OBS WebSocket: " || msg.trim().endsWith(":");
+            const isAuthFail     = msg.includes("Authentication") || msg.includes("auth") || msg.includes("4009");
+            const isTimeout      = msg.includes("timed out");
+            if (isConnRefused || isClosedEmpty) {
+              console.error(`  ⚠️  OBS WebSocket not reachable on port ${obsPort} — is OBS running?`);
+              console.error(`      Fix: OBS → Tools → WebSocket Server Settings → Enable WebSocket server`);
+              console.error(`      Then check port (default 4455) matches Settings → OBS Studio section`);
+            } else if (isAuthFail) {
               console.error(`  ⚠️  OBS WebSocket: Wrong password`);
-              console.error(`      → Update the password in Settings → Connect tab and re-download the agent`);
+              console.error(`      Fix: update password in Settings → OBS Studio, then re-download start-agent.bat`);
+            } else if (isTimeout) {
+              console.error(`  ⚠️  OBS WebSocket: Connection timed out`);
+              console.error(`      OBS may be starting up — try again in a few seconds`);
             } else {
               console.error(`  ⚠️  OBS error: ${msg}`);
             }
