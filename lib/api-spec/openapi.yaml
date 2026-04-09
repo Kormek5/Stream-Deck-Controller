@@ -1,22 +1,26 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: StreamDeck API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: profiles
+    description: Profile operations
+  - name: buttons
+    description: Button operations
+  - name: actions
+    description: Action execution
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +28,219 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /profiles:
+    get:
+      operationId: listProfiles
+      tags: [profiles]
+      summary: List all profiles
+      responses:
+        "200":
+          description: List of profiles
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Profile"
+    post:
+      operationId: createProfile
+      tags: [profiles]
+      summary: Create a profile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateProfileBody"
+      responses:
+        "201":
+          description: Created profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Profile"
+
+  /profiles/{id}:
+    get:
+      operationId: getProfile
+      tags: [profiles]
+      summary: Get a profile
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Profile"
+    put:
+      operationId: updateProfile
+      tags: [profiles]
+      summary: Update a profile
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateProfileBody"
+      responses:
+        "200":
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Profile"
+    delete:
+      operationId: deleteProfile
+      tags: [profiles]
+      summary: Delete a profile
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /profiles/{id}/buttons:
+    get:
+      operationId: listButtons
+      tags: [buttons]
+      summary: List buttons in a profile
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of buttons
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Button"
+
+  /buttons:
+    post:
+      operationId: createButton
+      tags: [buttons]
+      summary: Create a button
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateButtonBody"
+      responses:
+        "201":
+          description: Created button
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Button"
+
+  /buttons/{id}:
+    put:
+      operationId: updateButton
+      tags: [buttons]
+      summary: Update a button
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateButtonBody"
+      responses:
+        "200":
+          description: Updated button
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Button"
+    delete:
+      operationId: deleteButton
+      tags: [buttons]
+      summary: Delete a button
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /buttons/{id}/execute:
+    post:
+      operationId: executeButton
+      tags: [actions]
+      summary: Execute a button action
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Execution result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExecutionResult"
+
+  /activity:
+    get:
+      operationId: getActivity
+      tags: [actions]
+      summary: Get recent activity log
+      responses:
+        "200":
+          description: Activity log
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ActivityEntry"
+
+  /stats:
+    get:
+      operationId: getStats
+      tags: [actions]
+      summary: Get usage stats
+      responses:
+        "200":
+          description: Stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Stats"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +251,171 @@ components:
       required:
         - status
 
+    Profile:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        icon:
+          type: string
+        isDefault:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - name
+        - icon
+        - isDefault
+        - createdAt
+
+    CreateProfileBody:
+      type: object
+      properties:
+        name:
+          type: string
+        icon:
+          type: string
+        isDefault:
+          type: boolean
+      required:
+        - name
+        - icon
+
+    Button:
+      type: object
+      properties:
+        id:
+          type: integer
+        profileId:
+          type: integer
+        label:
+          type: string
+        icon:
+          type: string
+        color:
+          type: string
+        actionType:
+          type: string
+          enum: [url, hotkey, script, vpn, steam, app, media]
+        actionValue:
+          type: string
+        position:
+          type: integer
+        executeCount:
+          type: integer
+        lastExecutedAt:
+          type: string
+          format: date-time
+          nullable: true
+      required:
+        - id
+        - profileId
+        - label
+        - icon
+        - color
+        - actionType
+        - actionValue
+        - position
+        - executeCount
+
+    CreateButtonBody:
+      type: object
+      properties:
+        profileId:
+          type: integer
+        label:
+          type: string
+        icon:
+          type: string
+        color:
+          type: string
+        actionType:
+          type: string
+          enum: [url, hotkey, script, vpn, steam, app, media]
+        actionValue:
+          type: string
+        position:
+          type: integer
+      required:
+        - profileId
+        - label
+        - icon
+        - color
+        - actionType
+        - actionValue
+        - position
+
+    ExecutionResult:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        buttonId:
+          type: integer
+      required:
+        - success
+        - message
+        - buttonId
+
+    ActivityEntry:
+      type: object
+      properties:
+        id:
+          type: integer
+        buttonId:
+          type: integer
+        buttonLabel:
+          type: string
+        actionType:
+          type: string
+        success:
+          type: boolean
+        message:
+          type: string
+        executedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - buttonId
+        - buttonLabel
+        - actionType
+        - success
+        - message
+        - executedAt
+
+    Stats:
+      type: object
+      properties:
+        totalButtons:
+          type: integer
+        totalProfiles:
+          type: integer
+        totalExecutions:
+          type: integer
+        topButtons:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+              label:
+                type: string
+              executeCount:
+                type: integer
+            required:
+              - id
+              - label
+              - executeCount
+      required:
+        - totalButtons
+        - totalProfiles
+        - totalExecutions
+        - topButtons

@@ -15,6 +15,25 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - **Validation**: Zod (`zod/v4`), `drizzle-zod`
 - **API codegen**: Orval (from OpenAPI spec)
 - **Build**: esbuild (CJS bundle)
+- **Frontend**: React + Vite (Tailwind CSS, shadcn/ui, framer-motion)
+
+## Artifacts
+
+### StreamDeck Panel (`artifacts/streamdeck`)
+- **Preview path**: `/`
+- **Purpose**: Browser-based StreamDeck control panel — programmable buttons to trigger actions from PC or phone
+- **Features**: Profiles, customizable buttons, action types (URL, Hotkey, Script, VPN, Steam, App, Media), activity log, usage stats
+- **Stack**: React + Vite, Tailwind CSS, shadcn/ui, framer-motion, wouter
+
+### API Server (`artifacts/api-server`)
+- **Preview path**: `/api`
+- **Routes**: `/api/profiles`, `/api/profiles/:id/buttons`, `/api/buttons`, `/api/buttons/:id/execute`, `/api/activity`, `/api/stats`
+
+## Database Schema
+
+- `profiles` — button deck profiles (Gaming, Work, Media, etc.)
+- `buttons` — individual buttons with action config per profile
+- `activity` — log of all button executions
 
 ## Key Commands
 

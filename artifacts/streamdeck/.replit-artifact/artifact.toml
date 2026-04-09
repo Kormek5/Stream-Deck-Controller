@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "StreamDeck Panel"
+version = "1.0.0"
+id = "artifacts/streamdeck"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 24541
+
+[services.development]
+run = "pnpm --filter @workspace/streamdeck run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/streamdeck", "run", "build" ]
+publicDir = "artifacts/streamdeck/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "24541"
+BASE_PATH = "/"
