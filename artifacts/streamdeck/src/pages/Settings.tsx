@@ -61,9 +61,10 @@ export function Settings() {
 
   function downloadBat() {
     const content = `@echo off
+chcp 65001 >nul
 title StreamDeck Agent
 echo ====================================
-echo   StreamDeck Local Agent — Windows
+echo   StreamDeck Local Agent - Windows
 echo ====================================
 echo.
 
@@ -72,8 +73,10 @@ where node >nul 2>&1
 if %errorlevel% neq 0 (
   echo [ОШИБКА] Node.js не установлен!
   echo.
-  echo Скачай с https://nodejs.org — выбери "LTS" версию.
-  echo После установки запусти этот файл снова.
+  echo Скачай с https://nodejs.org
+  echo Нажми большую кнопку "LTS", установи, потом запусти этот файл снова.
+  echo.
+  start https://nodejs.org
   pause
   exit /b 1
 )
@@ -81,7 +84,8 @@ if %errorlevel% neq 0 (
 echo [1/2] Устанавливаю зависимости...
 call npm install
 if %errorlevel% neq 0 (
-  echo [ОШИБКА] npm install не удался. Проверь подключение к интернету.
+  echo.
+  echo [ОШИБКА] npm install не удался. Проверь интернет и попробуй снова.
   pause
   exit /b 1
 )
@@ -90,8 +94,8 @@ echo.
 echo [2/2] Запускаю агента...
 echo Сервер: ${serverUrl}
 echo.
-echo Агент подключён. Не закрывай это окно!
-echo Чтобы остановить — нажми Ctrl+C
+echo Агент подключён! Не закрывай это окно.
+echo Чтобы остановить - нажми Ctrl+C
 echo.
 node agent.js --server ${serverUrl}
 pause
@@ -189,9 +193,21 @@ node agent.js --server ${serverUrl}
             </div>
           </div>
 
+          {/* ─── STEP 0: Node.js ─── */}
+          <div className="space-y-2">
+            <p className="text-xs font-mono uppercase text-muted-foreground tracking-wide">Шаг 1 — Установи Node.js (один раз)</p>
+            <a href="https://nodejs.org" target="_blank" rel="noreferrer" className="block">
+              <Button variant="outline" className="w-full gap-2 border-yellow-500/40 text-yellow-300 hover:bg-yellow-500/10 font-mono uppercase py-4 text-sm">
+                <Download className="w-4 h-4" />
+                Открыть nodejs.org → нажать LTS → установить
+              </Button>
+            </a>
+            <p className="text-xs text-muted-foreground">Если Node.js уже есть — пропусти этот шаг.</p>
+          </div>
+
           {/* ─── STEP 1: Download ZIP ─── */}
           <div className="space-y-2">
-            <p className="text-xs font-mono uppercase text-muted-foreground tracking-wide">Шаг 1 — Скачай архив с агентом</p>
+            <p className="text-xs font-mono uppercase text-muted-foreground tracking-wide">Шаг 2 — Скачай архив с агентом</p>
             <a href={`${serverUrl}/streamdeck-agent.zip`} download="streamdeck-agent.zip" className="block">
               <Button className="w-full gap-2 font-mono uppercase tracking-wide py-5 text-sm">
                 <Download className="w-4 h-4" />
@@ -201,9 +217,9 @@ node agent.js --server ${serverUrl}
             <p className="text-xs text-muted-foreground">Распакуй в любую папку на компьютере.</p>
           </div>
 
-          {/* ─── STEP 2: Download run script ─── */}
+          {/* ─── STEP 3: Download run script ─── */}
           <div className="space-y-2">
-            <p className="text-xs font-mono uppercase text-muted-foreground tracking-wide">Шаг 2 — Скачай скрипт запуска и положи в ту же папку</p>
+            <p className="text-xs font-mono uppercase text-muted-foreground tracking-wide">Шаг 3 — Скачай скрипт запуска и положи в ту же папку</p>
             <div className="grid grid-cols-2 gap-2">
               <Button
                 variant="outline"
@@ -230,9 +246,9 @@ node agent.js --server ${serverUrl}
             </div>
           </div>
 
-          {/* ─── STEP 3: Run ─── */}
+          {/* ─── STEP 4: Run ─── */}
           <div className="rounded-lg border border-green-500/20 bg-green-500/5 p-4 space-y-1">
-            <p className="text-xs font-mono uppercase text-muted-foreground tracking-wide">Шаг 3 — Запусти</p>
+            <p className="text-xs font-mono uppercase text-muted-foreground tracking-wide">Шаг 4 — Запусти</p>
             <p className="text-sm font-medium">
               🪟 <span className="text-foreground">Windows:</span> двойной клик по <code className="text-primary font-mono">start-agent.bat</code>
             </p>
