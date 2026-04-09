@@ -22,14 +22,18 @@ const http = require("http");
 // ── CLI args ──────────────────────────────────────────────────────────────────
 const args = process.argv.slice(2);
 let serverUrl = "";
+let obsPassword = "";
+let obsPort = 4455;
 for (let i = 0; i < args.length; i++) {
-  if (args[i] === "--server" && args[i + 1]) serverUrl = args[i + 1];
+  if (args[i] === "--server" && args[i + 1])       serverUrl   = args[i + 1];
+  if (args[i] === "--obs-password" && args[i + 1]) obsPassword = args[i + 1];
+  if (args[i] === "--obs-port" && args[i + 1])     obsPort     = parseInt(args[i + 1], 10);
 }
 
 // Auto-detect from environment or fallback
-if (!serverUrl) {
-  serverUrl = process.env.STREAMDECK_SERVER || "http://localhost:3001";
-}
+if (!serverUrl)   serverUrl   = process.env.STREAMDECK_SERVER    || "http://localhost:3001";
+if (!obsPassword) obsPassword = process.env.OBS_WS_PASSWORD      || "";
+if (!obsPort)     obsPort     = parseInt(process.env.OBS_WS_PORT || "4455", 10);
 
 // ── Platform detection ────────────────────────────────────────────────────────
 const platform = process.platform; // 'win32' | 'darwin' | 'linux'
@@ -64,6 +68,17 @@ function run(cmd, opts = {}) {
   });
 }
 
+// ── Helper: write PowerShell to temp file and execute ─────────────────────────
+async function runPsScript(script) {
+  const tmpFile = path.join(os.tmpdir(), `sd_${Date.now()}.ps1`);
+  fs.writeFileSync(tmpFile, script, "utf8");
+  try {
+    return await run(`powershell -NoProfile -ExecutionPolicy Bypass -File "${tmpFile}"`);
+  } finally {
+    try { fs.unlinkSync(tmpFile); } catch {}
+  }
+}
+
 // ── Helper: open URL / app-scheme in OS default browser ──────────────────────
 async function openUrl(url) {
   if (platform === "win32") {
@@ -75,21 +90,44 @@ async function openUrl(url) {
   }
 }
 
+// ── Helper: build PowerShell SendKeys string from combo ───────────────────────
+function buildSendKeysString(combo) {
+  // Parse parts e.g. "ctrl+shift+m" → modifiers + key
+  const parts = combo.toLowerCase().split("+");
+  const specialKeys = {
+    enter: "{ENTER}", return: "{ENTER}", tab: "{TAB}", esc: "{ESC}", escape: "{ESC}",
+    space: " ", backspace: "{BACKSPACE}", delete: "{DELETE}", del: "{DELETE}",
+    up: "{UP}", down: "{DOWN}", left: "{LEFT}", right: "{RIGHT}",
+    home: "{HOME}", end: "{END}", pageup: "{PGUP}", pagedown: "{PGDN}",
+    insert: "{INSERT}", f1: "{F1}", f2: "{F2}", f3: "{F3}", f4: "{F4}",
+    f5: "{F5}", f6: "{F6}", f7: "{F7}", f8: "{F8}", f9: "{F9}",
+    f10: "{F10}", f11: "{F11}", f12: "{F12}",
+    // Characters that SendKeys treats as special - escape them
+    "~": "{~}", "(": "{(}", ")": "{)}", "%": "{%}", "^": "{^}", "+": "{+}",
+  };
+  let prefix = "";
+  let mainKey = "";
+  for (const p of parts) {
+    const t = p.trim();
+    if (t === "ctrl")  prefix += "^";
+    else if (t === "shift") prefix += "+";
+    else if (t === "alt")   prefix += "%";
+    else if (t === "win")   { prefix += "^{ESC}"; } // best approximation
+    else mainKey = specialKeys[t] || t;
+  }
+  return prefix + mainKey;
+}
+
 // ── Helper: send keyboard shortcut ───────────────────────────────────────────
 async function sendHotkey(combo) {
   // combo examples: "ctrl+shift+m", "win+d", "cmd+space"
   if (platform === "win32") {
-    // Convert to PowerShell SendKeys format
-    const psKeys = combo
-      .replace(/ctrl\+/gi, "^")
-      .replace(/shift\+/gi, "+")
-      .replace(/alt\+/gi, "%")
-      .replace(/win\+/gi, "^{ESC}") // approximate
-      .replace(/\+/g, "");
-    const ps = `Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('${psKeys}')`;
-    await run(`powershell -Command "${ps}"`);
+    const psKeys = buildSendKeysString(combo);
+    await runPsScript(
+      `Add-Type -AssemblyName System.Windows.Forms\n[System.Windows.Forms.SendKeys]::SendWait('${psKeys}')`
+    );
   } else if (platform === "darwin") {
-    // AppleScript: "keystroke "m" using {control down, shift down}"
+    // AppleScript: keystroke with modifiers
     const parts = combo.toLowerCase().split("+");
     const key = parts[parts.length - 1];
     const mods = parts.slice(0, -1).map(m => {
@@ -100,8 +138,7 @@ async function sendHotkey(combo) {
     await run(`osascript -e 'tell application "System Events" to keystroke "${key}"${modStr}'`);
   } else {
     // xdotool on Linux
-    const xKeys = combo.replace(/\+/g, "+");
-    await run(`xdotool key ${xKeys}`);
+    await run(`xdotool key ${combo}`);
   }
 }
 
@@ -238,33 +275,80 @@ async function executeSystemAction(command) {
   await run(cmd, { shell: true });
 }
 
+// ── OBS WebSocket v5 helper ────────────────────────────────────────────────────
+const crypto = require("crypto");
+function obsAuthString(password, salt, challenge) {
+  const secret = crypto.createHash("sha256").update(password + salt).digest("base64");
+  return crypto.createHash("sha256").update(secret + challenge).digest("base64");
+}
+async function obsRequest(requestType, requestData = {}) {
+  return new Promise((resolve, reject) => {
+    let ws;
+    try {
+      ws = new WebSocket(`ws://localhost:${obsPort}`);
+    } catch (e) {
+      return reject(new Error("OBS WebSocket not available"));
+    }
+    let done = false;
+    const finish = (err, val) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      try { ws.close(); } catch {}
+      if (err) reject(err); else resolve(val);
+    };
+    const timer = setTimeout(() => finish(new Error("OBS connection timed out (is OBS running with WebSocket enabled?)")), 5000);
+
+    ws.on("message", (raw) => {
+      const msg = JSON.parse(raw.toString());
+      const { op, d } = msg;
+      if (op === 0) {
+        // Hello → send Identify
+        const identPayload = { op: 1, d: { rpcVersion: 1 } };
+        if (d.authentication && obsPassword) {
+          identPayload.d.authentication = obsAuthString(obsPassword, d.authentication.salt, d.authentication.challenge);
+        }
+        ws.send(JSON.stringify(identPayload));
+      } else if (op === 2) {
+        // Identified → send request
+        ws.send(JSON.stringify({ op: 6, d: { requestType, requestId: "r1", requestData } }));
+      } else if (op === 7) {
+        // RequestResponse
+        if (d.requestStatus.result) finish(null, d.responseData || {});
+        else finish(new Error(`OBS error: ${d.requestStatus.comment || d.requestStatus.code}`));
+      }
+    });
+    ws.on("error", (err) => finish(new Error(`OBS WebSocket: ${err.message}`)));
+    ws.on("close", () => { if (!done) finish(new Error("OBS WebSocket closed unexpectedly")); });
+  });
+}
+
 // ── Media key commands ────────────────────────────────────────────────────────
 async function executeMediaAction(command) {
   if (platform === "win32") {
-    const keyMap = {
-      playpause: "VK_MEDIA_PLAY_PAUSE",
-      nexttrack: "VK_MEDIA_NEXT_TRACK",
-      prevtrack: "VK_MEDIA_PREV_TRACK",
-      stop: "VK_MEDIA_STOP",
-      volumeup: "VK_VOLUME_UP",
-      volumedown: "VK_VOLUME_DOWN",
-      mute: "VK_VOLUME_MUTE",
+    const hexMap = {
+      playpause: "B3", nexttrack: "B0", prevtrack: "B1", stop: "B2",
+      volumeup: "AF", volumedown: "AE", mute: "AD",
     };
-    const vk = keyMap[command];
-    if (vk) {
-      const ps = `
-        $code = @'
-        using System;using System.Runtime.InteropServices;
-        public class KB{
-          [DllImport("user32.dll")] public static extern void keybd_event(byte bVk,byte bScan,uint dwFlags,UIntPtr dwExtraInfo);
-          public static void Press(byte k){keybd_event(k,0,0,UIntPtr.Zero);keybd_event(k,0,2,UIntPtr.Zero);}
-        }
+    const hex = hexMap[command];
+    if (hex) {
+      // Write to a temp .ps1 file — heredoc MUST have closing '@ on its own line
+      const ps = `$code = @'
+using System;
+using System.Runtime.InteropServices;
+public class KB {
+  [DllImport("user32.dll")]
+  public static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
+  public static void Press(byte k) {
+    keybd_event(k, 0, 0, UIntPtr.Zero);
+    keybd_event(k, 0, 2, UIntPtr.Zero);
+  }
+}
 '@
-        Add-Type -TypeDefinition $code;[KB]::Press(0x${
-          { VK_MEDIA_PLAY_PAUSE: "B3", VK_MEDIA_NEXT_TRACK: "B0", VK_MEDIA_PREV_TRACK: "B1",
-            VK_MEDIA_STOP: "B2", VK_VOLUME_UP: "AF", VK_VOLUME_DOWN: "AE", VK_VOLUME_MUTE: "AD" }[vk]
-        })`;
-      await run(`powershell -Command "${ps.replace(/\n/g, " ")}"`);
+Add-Type -TypeDefinition $code
+[KB]::Press(0x${hex})
+`;
+      await runPsScript(ps);
     }
   } else if (platform === "darwin") {
     const keyMap = {
@@ -336,9 +420,32 @@ async function handleExecute(button) {
       }
 
       case "steam": {
-        const user = actionValue;
-        if (platform === "win32") await run(`start steam://login/${user}`);
-        else await openUrl(`steam://login/${user}`);
+        // Steam has no URL scheme for account-switching. Best we can do:
+        // 1. Bring Steam to foreground, or
+        // 2. Kill Steam so login screen appears on next launch
+        // actionValue may be a plain username string or JSON {"command":"switch","username":"..."}
+        const v = parseComposite(actionValue);
+        const steamUser = v.username || (typeof actionValue === "string" && !actionValue.startsWith("{") ? actionValue : "");
+        const steamCmd = v.command || (steamUser ? "switch" : "open");
+        if (steamCmd === "switch") {
+          // Kill Steam → user can restart it and pick an account
+          if (platform === "win32") {
+            await run(`taskkill /f /im steam.exe`).catch(() => {});
+            // Re-launch Steam after short delay (no auto-login flag)
+            await new Promise(r => setTimeout(r, 1500));
+            const steamExe = `"C:\\Program Files (x86)\\Steam\\steam.exe"`;
+            await run(`start "" ${steamExe} -noreactlogin`).catch(() => run(`start steam://open/main`).catch(() => {}));
+          } else if (platform === "darwin") {
+            await run(`killall Steam 2>/dev/null || true`);
+            await new Promise(r => setTimeout(r, 1500));
+            await run(`open -a Steam`).catch(() => {});
+          } else {
+            await run(`pkill steam 2>/dev/null || true`);
+          }
+        } else {
+          // Just open / bring Steam to front
+          await openUrl("steam://open/main").catch(() => openUrl("https://store.steampowered.com"));
+        }
         break;
       }
 
@@ -358,39 +465,41 @@ async function handleExecute(button) {
 
       case "zoom": {
         const v = parseComposite(actionValue);
-        if (v.command === "join" && v.meetingId) {
+        const cmd = v.command || actionValue;
+        if (cmd === "join" && v.meetingId) {
           await openUrl(`zoommtg://zoom.us/join?confno=${v.meetingId.replace(/\D/g, "")}`);
-        } else if (v.command === "newmeeting") {
+        } else if (cmd === "newmeeting") {
           await openUrl("zoommtg://zoom.us/start?confno=0");
         } else {
-          // For in-meeting hotkeys
           const zoomHotkeys = {
-            mute: { win32: "alt+a", darwin: "cmd+shift+a" },
-            video: { win32: "alt+v", darwin: "cmd+shift+v" },
-            screenshare: { win32: "alt+shift+s", darwin: "cmd+shift+s" },
-            hand: { win32: "alt+y", darwin: "option+y" },
-            record: { win32: "alt+r", darwin: "cmd+shift+r" },
-            leave: { win32: "alt+q", darwin: "cmd+w" },
-            chat: { win32: "alt+h", darwin: "cmd+shift+h" },
-            participants: { win32: "alt+u", darwin: "cmd+u" },
+            mute:         { win32: "alt+a",       darwin: "cmd+shift+a" },
+            video:        { win32: "alt+v",       darwin: "cmd+shift+v" },
+            screenshare:  { win32: "alt+shift+s", darwin: "cmd+shift+s" },
+            hand:         { win32: "alt+y",       darwin: "option+y" },
+            record:       { win32: "alt+r",       darwin: "cmd+shift+r" },
+            leave:        { win32: "alt+q",       darwin: "cmd+w" },
+            chat:         { win32: "alt+h",       darwin: "cmd+shift+h" },
+            participants: { win32: "alt+u",       darwin: "cmd+u" },
           };
-          const hk = zoomHotkeys[v.command || ""];
+          const hk = zoomHotkeys[cmd];
           if (hk) await sendHotkey(platform === "darwin" ? hk.darwin : hk.win32);
+          else await openUrl("zoommtg://zoom.us/");
         }
         break;
       }
 
       case "teams": {
         const v = parseComposite(actionValue);
+        const cmd = v.command || actionValue;
         const teamsHotkeys = {
-          mute: { win32: "ctrl+shift+m", darwin: "cmd+shift+m" },
-          video: { win32: "ctrl+shift+o", darwin: "cmd+shift+o" },
+          mute:        { win32: "ctrl+shift+m", darwin: "cmd+shift+m" },
+          video:       { win32: "ctrl+shift+o", darwin: "cmd+shift+o" },
           screenshare: { win32: "ctrl+shift+e", darwin: "cmd+shift+e" },
-          hand: { win32: "ctrl+shift+k", darwin: "cmd+shift+k" },
-          leave: { win32: "ctrl+shift+h", darwin: "cmd+shift+h" },
-          blur: { win32: "ctrl+shift+p", darwin: "cmd+shift+p" },
+          hand:        { win32: "ctrl+shift+k", darwin: "cmd+shift+k" },
+          leave:       { win32: "ctrl+shift+h", darwin: "cmd+shift+h" },
+          blur:        { win32: "ctrl+shift+p", darwin: "cmd+shift+p" },
         };
-        const hk = teamsHotkeys[v.command || ""];
+        const hk = teamsHotkeys[cmd];
         if (hk) await sendHotkey(platform === "darwin" ? hk.darwin : hk.win32);
         else await openUrl("msteams://");
         break;
@@ -398,12 +507,18 @@ async function handleExecute(button) {
 
       case "discord": {
         const v = parseComposite(actionValue);
+        const cmd = v.command || actionValue;
         const discordHotkeys = {
-          mute: { win32: "ctrl+shift+m", darwin: "cmd+shift+m" },
-          deafen: { win32: "ctrl+shift+d", darwin: "cmd+shift+d" },
-          disconnect: { win32: "ctrl+shift+e", darwin: "cmd+shift+e" },
+          mute:              { win32: "ctrl+shift+m", darwin: "cmd+shift+m" },
+          deafen:            { win32: "ctrl+shift+d", darwin: "cmd+shift+d" },
+          disconnect:        { win32: "ctrl+shift+e", darwin: "cmd+shift+e" },
+          video:             { win32: "ctrl+shift+v", darwin: "cmd+shift+v" },
+          screenshare:       { win32: "ctrl+shift+s", darwin: "cmd+shift+s" },
+          "go-live":         { win32: "ctrl+shift+l", darwin: "cmd+shift+l" },
+          "push-to-talk":    { win32: "ctrl+shift+t", darwin: "cmd+shift+t" },
+          "notifications-off": { win32: "ctrl+shift+n", darwin: "cmd+shift+n" },
         };
-        const hk = discordHotkeys[v.command || ""];
+        const hk = discordHotkeys[cmd];
         if (hk) await sendHotkey(platform === "darwin" ? hk.darwin : hk.win32);
         else await openUrl(`discord://`);
         break;
@@ -443,17 +558,34 @@ async function handleExecute(button) {
 
       case "obs": {
         const v = parseComposite(actionValue);
-        const obsHotkeys = {
-          "start-recording": { win32: "ctrl+alt+r", darwin: "cmd+option+r" },
-          "stop-recording": { win32: "ctrl+alt+r", darwin: "cmd+option+r" },
-          "toggle-recording": { win32: "ctrl+alt+r", darwin: "cmd+option+r" },
-          "start-streaming": { win32: "ctrl+alt+s", darwin: "cmd+option+s" },
-          "stop-streaming": { win32: "ctrl+alt+s", darwin: "cmd+option+s" },
-          "toggle-streaming": { win32: "ctrl+alt+s", darwin: "cmd+option+s" },
-          screenshot: { win32: "ctrl+alt+c", darwin: "cmd+option+c" },
+        const cmd = v.command || actionValue;
+        // Map commands to OBS WebSocket v5 request types
+        const obsWsMap = {
+          "start-recording":    () => obsRequest("StartRecord"),
+          "stop-recording":     () => obsRequest("StopRecord"),
+          "toggle-recording":   () => obsRequest("ToggleRecord"),
+          "start-streaming":    () => obsRequest("StartStream"),
+          "stop-streaming":     () => obsRequest("StopStream"),
+          "toggle-streaming":   () => obsRequest("ToggleStream"),
+          "replay-buffer":      () => obsRequest("ToggleReplayBuffer"),
+          "save-replay":        () => obsRequest("SaveReplayBuffer"),
+          "toggle-mute-mic":    () => obsRequest("ToggleInputMute", { inputName: "Mic/Aux" }),
+          "toggle-mute-desktop":() => obsRequest("ToggleInputMute", { inputName: "Desktop Audio" }),
+          "switch-scene":       () => v.scene
+            ? obsRequest("SetCurrentProgramScene", { sceneName: v.scene })
+            : Promise.reject(new Error("No scene name specified")),
+          "screenshot":         () => obsRequest("SaveSourceScreenshot", {
+            sourceName: v.scene || undefined,
+            imageFormat: "png",
+            imageFilePath: "",
+          }),
         };
-        const hk = obsHotkeys[v.command || ""];
-        if (hk) await sendHotkey(platform === "darwin" ? hk.darwin : hk.win32);
+        const handler = obsWsMap[cmd];
+        if (handler) {
+          await handler();
+        } else {
+          console.log(`  → OBS: unknown command "${cmd}"`);
+        }
         break;
       }
 

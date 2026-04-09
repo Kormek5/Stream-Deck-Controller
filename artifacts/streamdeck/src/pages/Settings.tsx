@@ -4,9 +4,10 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Settings as SettingsIcon, Monitor, Wifi, Volume2,
-  Terminal, Download, CheckCircle2, XCircle, RefreshCw,
+  Terminal, Download, CheckCircle2, XCircle, RefreshCw, Video,
 } from "lucide-react";
 import { getApiUrl } from "@/lib/api";
 
@@ -40,6 +41,13 @@ function downloadBlob(content: string, filename: string, mime: string) {
 
 export function Settings() {
   const [agentStatus, setAgentStatus] = useState<AgentStatus | null>(null);
+  const [obsPassword, setObsPassword] = useState(() => localStorage.getItem("obs_ws_password") || "");
+  const [obsPort, setObsPort] = useState(() => localStorage.getItem("obs_ws_port") || "4455");
+
+  function saveObsConfig() {
+    localStorage.setItem("obs_ws_password", obsPassword);
+    localStorage.setItem("obs_ws_port", obsPort);
+  }
 
   async function fetchStatus() {
     try {
@@ -61,6 +69,9 @@ export function Settings() {
 
   function downloadBat() {
     // ASCII ONLY - no Cyrillic, no Unicode - guaranteed to work on any Windows
+    const obsArgs = obsPassword
+      ? ` --obs-password ${obsPassword}${obsPort !== "4455" ? ` --obs-port ${obsPort}` : ""}`
+      : (obsPort !== "4455" ? ` --obs-port ${obsPort}` : "");
     const content = `@echo off
 cd /d "%~dp0"
 title StreamDeck Agent
@@ -88,7 +99,7 @@ echo.
 echo Agent is running! Do not close this window.
 echo To stop - press Ctrl+C
 echo.
-node agent.js --server ${serverUrl}
+node agent.js --server ${serverUrl}${obsArgs}
 pause
 `;
     downloadBlob(content, "start-agent.bat", "application/bat");
@@ -262,6 +273,54 @@ node agent.js --server ${serverUrl}
             </div>
           </div>
 
+        </CardContent>
+      </Card>
+
+      {/* ── OBS Studio ─────────────────────────────────────────────────── */}
+      <Card className="bg-card border-border">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 font-mono uppercase">
+            <Video className="w-4 h-4 text-primary" /> OBS Studio
+          </CardTitle>
+          <CardDescription>
+            Настройки WebSocket для управления OBS (переключение сцен, запись и т.д.)
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-start gap-2 text-xs bg-primary/5 border border-primary/20 rounded-lg p-3">
+            <span className="text-base leading-none mt-0.5">ℹ️</span>
+            <div className="text-muted-foreground">
+              В OBS: <strong className="text-foreground">Tools → WebSocket Server Settings</strong> → Enable → Set password. По умолчанию порт <code className="font-mono">4455</code>.
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="col-span-2 space-y-1">
+              <Label className="text-xs font-mono uppercase text-muted-foreground">WebSocket Password</Label>
+              <Input
+                type="password"
+                placeholder="Пароль из OBS настроек"
+                value={obsPassword}
+                onChange={e => setObsPassword(e.target.value)}
+                className="font-mono text-sm"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs font-mono uppercase text-muted-foreground">Port</Label>
+              <Input
+                type="number"
+                placeholder="4455"
+                value={obsPort}
+                onChange={e => setObsPort(e.target.value)}
+                className="font-mono text-sm"
+              />
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            После сохранения — скачай <strong>start-agent.bat</strong> заново, пароль будет включён в скрипт автоматически.
+          </p>
+          <Button onClick={saveObsConfig} variant="outline" size="sm" className="font-mono uppercase w-full">
+            Сохранить конфигурацию OBS
+          </Button>
         </CardContent>
       </Card>
 
