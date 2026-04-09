@@ -2,8 +2,16 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { Button as ButtonType } from "@workspace/api-client-react/src/generated/api.schemas";
 import { ICONS, BUTTON_COLORS } from "@/lib/constants";
-import { Box } from "lucide-react";
+import { Box, Layers } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+function getMultiStepCount(actionType: string, actionValue: string): number | null {
+  if (actionType !== "multi") return null;
+  try {
+    const steps = JSON.parse(actionValue);
+    return Array.isArray(steps) ? steps.length : null;
+  } catch { return null; }
+}
 
 interface StreamButtonProps {
   button: ButtonType;
@@ -19,6 +27,7 @@ export function StreamButton({ button, isEditMode, onClick }: StreamButtonProps)
   
   const colorDef = BUTTON_COLORS.find(c => c.id === button.color) || BUTTON_COLORS[0];
   const hexColor = colorDef.hex;
+  const multiSteps = getMultiStepCount(button.actionType, button.actionValue);
 
   return (
     <motion.button
@@ -77,6 +86,17 @@ export function StreamButton({ button, isEditMode, onClick }: StreamButtonProps)
         {button.label}
       </span>
       
+      {/* Multi-action badge */}
+      {multiSteps !== null && (
+        <div
+          className="absolute top-1.5 right-1.5 z-10 flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[9px] font-mono font-bold leading-none"
+          style={{ backgroundColor: `${hexColor}30`, color: hexColor, border: `1px solid ${hexColor}50` }}
+        >
+          <Layers className="w-2.5 h-2.5" />
+          {multiSteps}
+        </div>
+      )}
+
       {/* Edit mode overlay */}
       {isEditMode && (
         <div className="absolute inset-0 bg-black/40 flex items-center justify-center backdrop-blur-[1px] z-20">

@@ -619,15 +619,16 @@ async function handleExecute(button) {
         let steps;
         try { steps = JSON.parse(actionValue); } catch { steps = []; }
         if (!Array.isArray(steps)) steps = [];
+        console.log(`  ↳ Multi-action: ${steps.length} step(s)`);
         for (let stepIdx = 0; stepIdx < steps.length; stepIdx++) {
           const step = steps[stepIdx];
           if (!step || !step.type) continue;
-          console.log(`  ↳ Step ${stepIdx + 1}/${steps.length}: [${step.type}] ${step.value || ""}`);
-          // Re-use main handler by constructing a synthetic button
+          console.log(`  ↳ [${stepIdx + 1}/${steps.length}] ${step.type}: ${step.value || "(no value)"}`);
           await handleExecute({ actionType: step.type, actionValue: step.value || "", label: `Step ${stepIdx + 1}` });
-          // Small delay between steps
+          // Respect per-step delay (defaults to 200ms if not set)
           if (stepIdx < steps.length - 1) {
-            await new Promise(r => setTimeout(r, 200));
+            const delayMs = typeof step.delay === "number" ? step.delay : 200;
+            if (delayMs > 0) await new Promise(r => setTimeout(r, delayMs));
           }
         }
         break;

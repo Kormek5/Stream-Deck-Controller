@@ -64,14 +64,14 @@ interface Props {
 
 // ── Multi-Action Step Editor ──────────────────────────────────────────────────
 
-interface MultiStep { type: string; value: string }
+interface MultiStep { type: string; value: string; delay?: number }
 
 function parseMultiSteps(raw: string): MultiStep[] {
   try {
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed) && parsed.length > 0) return parsed as MultiStep[];
   } catch {}
-  return [{ type: "hotkey", value: "" }];
+  return [{ type: "hotkey", value: "", delay: 200 }];
 }
 
 const NON_MULTI_TYPES = ACTION_TYPES.filter(t => t.value !== "multi");
@@ -87,73 +87,153 @@ function MultiActionEditor({ value, onChange }: { value: string; onChange: (v: s
 
   const commit = (next: MultiStep[]) => onChange(JSON.stringify(next));
 
-  const updateType = (i: number, type: string) => {
-    const next = steps.map((s, idx) => idx === i ? { type, value: "" } : s);
-    commit(next);
-  };
+  const updateType = (i: number, type: string) =>
+    commit(steps.map((s, idx) => idx === i ? { type, value: "", delay: s.delay ?? 200 } : s));
 
-  const updateValue = (i: number, val: string) => {
-    const next = steps.map((s, idx) => idx === i ? { ...s, value: val } : s);
-    commit(next);
-  };
+  const updateValue = (i: number, val: string) =>
+    commit(steps.map((s, idx) => idx === i ? { ...s, value: val } : s));
 
-  const addStep = () => commit([...steps, { type: "hotkey", value: "" }]);
+  const updateDelay = (i: number, ms: number) =>
+    commit(steps.map((s, idx) => idx === i ? { ...s, delay: ms } : s));
+
+  const addStep = () => commit([...steps, { type: "hotkey", value: "", delay: 200 }]);
 
   const removeStep = (i: number) => {
     const next = steps.filter((_, idx) => idx !== i);
-    commit(next.length > 0 ? next : [{ type: "hotkey", value: "" }]);
+    commit(next.length > 0 ? next : [{ type: "hotkey", value: "", delay: 200 }]);
+  };
+
+  const moveStep = (from: number, to: number) => {
+    const next = [...steps];
+    const [item] = next.splice(from, 1);
+    next.splice(to, 0, item);
+    commit(next);
   };
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-1.5">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-1">
+        <p className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider">
+          {steps.length} step{steps.length !== 1 ? "s" : ""} — runs top to bottom
+        </p>
+      </div>
+
       {steps.map((step, i) => (
-        <div key={i} className="border border-border rounded-lg p-3 space-y-2 bg-muted/10">
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-[10px] font-mono font-bold text-primary uppercase tracking-wider">
-              Step {i + 1}
-            </span>
-            {steps.length > 1 && (
-              <button
-                type="button"
-                onClick={() => removeStep(i)}
-                className="text-muted-foreground hover:text-destructive transition-colors"
+        <div key={i} className="relative">
+          {/* Step card */}
+          <div className="border border-border rounded-xl p-3 space-y-2.5 bg-muted/10 hover:border-primary/30 transition-colors">
+            {/* Step header row */}
+            <div className="flex items-center gap-2">
+              {/* Step number */}
+              <div
+                className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-mono font-bold shrink-0"
+                style={{ background: "hsl(var(--primary)/0.2)", color: "hsl(var(--primary))" }}
               >
-                <X className="w-3.5 h-3.5" />
-              </button>
+                {i + 1}
+              </div>
+
+              {/* Action type picker */}
+              <Select value={step.type} onValueChange={(v) => updateType(i, v)}>
+                <SelectTrigger className="bg-input border-border h-7 text-xs flex-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="max-h-[220px] overflow-y-auto">
+                  {NON_MULTI_GROUPS.map(([group, types]) => (
+                    <SelectGroup key={group}>
+                      <SelectLabel className="text-[10px] text-muted-foreground uppercase tracking-wider py-1">
+                        {group}
+                      </SelectLabel>
+                      {types.map((type) => {
+                        const Icon = type.icon;
+                        return (
+                          <SelectItem key={type.value} value={type.value} className="text-xs">
+                            <div className="flex items-center gap-2">
+                              <Icon className="w-3 h-3" />
+                              {type.label}
+                            </div>
+                          </SelectItem>
+                        );
+                      })}
+                    </SelectGroup>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              {/* Reorder up/down */}
+              <div className="flex flex-col shrink-0">
+                <button
+                  type="button" disabled={i === 0}
+                  onClick={() => moveStep(i, i - 1)}
+                  className="text-muted-foreground hover:text-foreground disabled:opacity-20 transition-colors leading-none"
+                >
+                  <svg className="w-3 h-3" viewBox="0 0 12 12" fill="currentColor"><path d="M6 2l4 5H2z"/></svg>
+                </button>
+                <button
+                  type="button" disabled={i === steps.length - 1}
+                  onClick={() => moveStep(i, i + 1)}
+                  className="text-muted-foreground hover:text-foreground disabled:opacity-20 transition-colors leading-none"
+                >
+                  <svg className="w-3 h-3" viewBox="0 0 12 12" fill="currentColor"><path d="M6 10L2 5h8z"/></svg>
+                </button>
+              </div>
+
+              {/* Delete */}
+              {steps.length > 1 && (
+                <button
+                  type="button"
+                  onClick={() => removeStep(i)}
+                  className="text-muted-foreground hover:text-destructive transition-colors shrink-0"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            {/* Action value */}
+            <ActionValueField actionType={step.type} value={step.value} onChange={(v) => updateValue(i, v)} />
+
+            {/* Delay after this step (not shown for last step) */}
+            {i < steps.length - 1 && (
+              <div className="flex items-center gap-2 pt-1 border-t border-border/40">
+                <span className="text-[10px] text-muted-foreground font-mono uppercase tracking-wider shrink-0">
+                  Wait after:
+                </span>
+                <div className="flex gap-1">
+                  {[0, 200, 500, 1000, 2000].map(ms => (
+                    <button
+                      key={ms}
+                      type="button"
+                      onClick={() => updateDelay(i, ms)}
+                      className={`px-2 py-0.5 rounded text-[10px] font-mono transition-colors ${
+                        (step.delay ?? 200) === ms
+                          ? "bg-primary/20 text-primary border border-primary/40"
+                          : "bg-muted/30 text-muted-foreground hover:text-foreground border border-transparent"
+                      }`}
+                    >
+                      {ms === 0 ? "0ms" : ms < 1000 ? `${ms}ms` : `${ms/1000}s`}
+                    </button>
+                  ))}
+                </div>
+              </div>
             )}
           </div>
-          <Select value={step.type} onValueChange={(v) => updateType(i, v)}>
-            <SelectTrigger className="bg-input border-border h-8 text-xs">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent className="max-h-[200px] overflow-y-auto">
-              {NON_MULTI_GROUPS.map(([group, types]) => (
-                <SelectGroup key={group}>
-                  <SelectLabel className="text-[10px] text-muted-foreground uppercase tracking-wider py-1">
-                    {group}
-                  </SelectLabel>
-                  {types.map((type) => {
-                    const Icon = type.icon;
-                    return (
-                      <SelectItem key={type.value} value={type.value} className="text-xs">
-                        <div className="flex items-center gap-2">
-                          <Icon className="w-3 h-3" />
-                          {type.label}
-                        </div>
-                      </SelectItem>
-                    );
-                  })}
-                </SelectGroup>
-              ))}
-            </SelectContent>
-          </Select>
-          <ActionValueField actionType={step.type} value={step.value} onChange={(v) => updateValue(i, v)} />
+
+          {/* Arrow connector between steps */}
+          {i < steps.length - 1 && (
+            <div className="flex justify-center my-0.5">
+              <svg className="w-3 h-3 text-muted-foreground/40" viewBox="0 0 12 12" fill="currentColor">
+                <path d="M6 10L2 5h8z"/>
+              </svg>
+            </div>
+          )}
         </div>
       ))}
+
       <button
         type="button"
         onClick={addStep}
-        className="w-full flex items-center justify-center gap-1.5 border border-dashed border-border rounded-lg py-2 text-xs text-muted-foreground hover:text-foreground hover:border-primary/50 transition-colors"
+        className="w-full flex items-center justify-center gap-1.5 border border-dashed border-border rounded-xl py-2.5 text-xs text-muted-foreground hover:text-foreground hover:border-primary/50 transition-colors mt-1"
       >
         <Plus className="w-3.5 h-3.5" />
         Add step
