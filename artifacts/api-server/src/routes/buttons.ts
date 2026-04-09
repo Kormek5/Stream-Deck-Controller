@@ -73,6 +73,14 @@ router.post("/buttons/:id/execute", async (req, res) => {
   let message = "";
   const success = true;
 
+  const parseComposite = (raw: string): Record<string, string> => {
+    try {
+      const parsed = JSON.parse(raw);
+      if (typeof parsed === "object" && parsed !== null) return parsed as Record<string, string>;
+    } catch {}
+    return {};
+  };
+
   switch (button.actionType) {
     case "url":
       message = `Opening URL: ${button.actionValue}`;
@@ -92,9 +100,69 @@ router.post("/buttons/:id/execute", async (req, res) => {
     case "app":
       message = `Launching app: ${button.actionValue}`;
       break;
-    case "media":
-      message = `Media control: ${button.actionValue}`;
+    case "media": {
+      const mediaLabels: Record<string, string> = {
+        playpause: "Play/Pause",
+        nexttrack: "Next Track",
+        prevtrack: "Previous Track",
+        volumeup: "Volume Up",
+        volumedown: "Volume Down",
+        mute: "Mute/Unmute",
+        stop: "Stop",
+      };
+      message = `Media: ${mediaLabels[button.actionValue] ?? button.actionValue}`;
       break;
+    }
+    case "obs": {
+      const obs = parseComposite(button.actionValue);
+      const obsLabels: Record<string, string> = {
+        "start-recording": "Start Recording",
+        "stop-recording": "Stop Recording",
+        "toggle-recording": "Toggle Recording",
+        "start-streaming": "Start Streaming",
+        "stop-streaming": "Stop Streaming",
+        "toggle-streaming": "Toggle Streaming",
+        "switch-scene": `Switch Scene${obs.scene ? `: ${obs.scene}` : ""}`,
+        "toggle-mute-mic": "Toggle Mute Microphone",
+        "toggle-mute-desktop": "Toggle Mute Desktop Audio",
+        "screenshot": "Save Screenshot",
+      };
+      message = `OBS: ${obsLabels[obs.command ?? ""] ?? obs.command ?? "action triggered"}`;
+      break;
+    }
+    case "github": {
+      const gh = parseComposite(button.actionValue);
+      const ghLabels: Record<string, string> = {
+        "open-repo": "Open Repository",
+        "open-prs": "Open Pull Requests",
+        "open-issues": "Open Issues",
+        "open-actions": "Open Actions",
+        "open-commits": "Open Commits",
+        "new-issue": "Create New Issue",
+        "new-pr": "Create New PR",
+        "open-profile": "Open Profile",
+        "open-notifications": "Open Notifications",
+      };
+      const repoSuffix = gh.repo ? ` (${gh.repo})` : "";
+      message = `GitHub: ${ghLabels[gh.command ?? ""] ?? gh.command ?? "action triggered"}${repoSuffix}`;
+      break;
+    }
+    case "twitch": {
+      const tw = parseComposite(button.actionValue);
+      const twLabels: Record<string, string> = {
+        "open-channel": "Open Channel",
+        "open-dashboard": "Open Creator Dashboard",
+        "open-analytics": "Open Analytics",
+        "open-chat": "Open Chat",
+        "open-stream-manager": "Open Stream Manager",
+        "clip": "Open Clips",
+        "schedule": "Open Schedule",
+        "open-homepage": "Open Twitch Homepage",
+      };
+      const channelSuffix = tw.channel ? ` (${tw.channel})` : "";
+      message = `Twitch: ${twLabels[tw.command ?? ""] ?? tw.command ?? "action triggered"}${channelSuffix}`;
+      break;
+    }
     default:
       message = `Action executed: ${button.label}`;
   }

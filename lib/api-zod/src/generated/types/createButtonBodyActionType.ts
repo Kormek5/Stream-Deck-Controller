@@ -17,4 +17,7 @@ export const CreateButtonBodyActionType = {
   steam: "steam",
   app: "app",
   media: "media",
+  obs: "obs",
+  github: "github",
+  twitch: "twitch",
 } as const;
