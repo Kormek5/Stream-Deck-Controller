@@ -9,6 +9,7 @@ import type { CreateButtonBodyActionType } from "./createButtonBodyActionType";
 
 export interface CreateButtonBody {
   profileId: number;
+  folderId?: number | null;
   label: string;
   icon: string;
   color: string;

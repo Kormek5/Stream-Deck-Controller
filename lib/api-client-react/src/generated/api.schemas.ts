@@ -23,6 +23,23 @@ export interface CreateProfileBody {
   isDefault?: boolean;
 }
 
+export interface Folder {
+  id: number;
+  profileId: number;
+  name: string;
+  color: string;
+  icon: string;
+  position: number;
+}
+
+export interface CreateFolderBody {
+  profileId: number;
+  name: string;
+  color: string;
+  icon: string;
+  position: number;
+}
+
 export type ButtonActionType =
   (typeof ButtonActionType)[keyof typeof ButtonActionType];
 
@@ -46,11 +63,21 @@ export const ButtonActionType = {
   notion: "notion",
   browser: "browser",
   system: "system",
+  googlemeet: "googlemeet",
+  vscode: "vscode",
+  youtube: "youtube",
+  gmail: "gmail",
+  whatsapp: "whatsapp",
+  figma: "figma",
+  x: "x",
+  chatgpt: "chatgpt",
+  airdrop: "airdrop",
 } as const;
 
 export interface Button {
   id: number;
   profileId: number;
+  folderId?: number | null;
   label: string;
   icon: string;
   color: string;
@@ -84,10 +111,20 @@ export const CreateButtonBodyActionType = {
   notion: "notion",
   browser: "browser",
   system: "system",
+  googlemeet: "googlemeet",
+  vscode: "vscode",
+  youtube: "youtube",
+  gmail: "gmail",
+  whatsapp: "whatsapp",
+  figma: "figma",
+  x: "x",
+  chatgpt: "chatgpt",
+  airdrop: "airdrop",
 } as const;
 
 export interface CreateButtonBody {
   profileId: number;
+  folderId?: number | null;
   label: string;
   icon: string;
   color: string;
@@ -124,3 +161,7 @@ export interface Stats {
   totalExecutions: number;
   topButtons: StatsTopButtonsItem[];
 }
+
+export type ListButtonsParams = {
+  folderId?: number | null;
+};

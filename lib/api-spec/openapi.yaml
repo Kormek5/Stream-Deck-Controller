@@ -11,6 +11,8 @@ tags:
     description: Health operations
   - name: profiles
     description: Profile operations
+  - name: folders
+    description: Folder operations
   - name: buttons
     description: Button operations
   - name: actions
@@ -127,6 +129,12 @@ paths:
           required: true
           schema:
             type: integer
+        - name: folderId
+          in: query
+          required: false
+          schema:
+            type: integer
+            nullable: true
       responses:
         "200":
           description: List of buttons
@@ -136,6 +144,84 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/Button"
+
+  /profiles/{id}/folders:
+    get:
+      operationId: listFolders
+      tags: [folders]
+      summary: List folders in a profile
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of folders
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Folder"
+
+  /folders:
+    post:
+      operationId: createFolder
+      tags: [folders]
+      summary: Create a folder
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateFolderBody"
+      responses:
+        "201":
+          description: Created folder
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Folder"
+
+  /folders/{id}:
+    put:
+      operationId: updateFolder
+      tags: [folders]
+      summary: Update a folder
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateFolderBody"
+      responses:
+        "200":
+          description: Updated folder
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Folder"
+    delete:
+      operationId: deleteFolder
+      tags: [folders]
+      summary: Delete a folder
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
 
   /buttons:
     post:
@@ -285,6 +371,49 @@ components:
         - name
         - icon
 
+    Folder:
+      type: object
+      properties:
+        id:
+          type: integer
+        profileId:
+          type: integer
+        name:
+          type: string
+        color:
+          type: string
+        icon:
+          type: string
+        position:
+          type: integer
+      required:
+        - id
+        - profileId
+        - name
+        - color
+        - icon
+        - position
+
+    CreateFolderBody:
+      type: object
+      properties:
+        profileId:
+          type: integer
+        name:
+          type: string
+        color:
+          type: string
+        icon:
+          type: string
+        position:
+          type: integer
+      required:
+        - profileId
+        - name
+        - color
+        - icon
+        - position
+
     Button:
       type: object
       properties:
@@ -292,6 +421,9 @@ components:
           type: integer
         profileId:
           type: integer
+        folderId:
+          type: integer
+          nullable: true
         label:
           type: string
         icon:
@@ -300,7 +432,7 @@ components:
           type: string
         actionType:
           type: string
-          enum: [url, hotkey, script, vpn, steam, app, media, obs, github, twitch, zoom, discord, spotify, slack, teams, telegram, notion, browser, system]
+          enum: [url, hotkey, script, vpn, steam, app, media, obs, github, twitch, zoom, discord, spotify, slack, teams, telegram, notion, browser, system, googlemeet, vscode, youtube, gmail, whatsapp, figma, x, chatgpt, figma, airdrop]
         actionValue:
           type: string
         position:
@@ -327,6 +459,9 @@ components:
       properties:
         profileId:
           type: integer
+        folderId:
+          type: integer
+          nullable: true
         label:
           type: string
         icon:
@@ -335,7 +470,7 @@ components:
           type: string
         actionType:
           type: string
-          enum: [url, hotkey, script, vpn, steam, app, media, obs, github, twitch, zoom, discord, spotify, slack, teams, telegram, notion, browser, system]
+          enum: [url, hotkey, script, vpn, steam, app, media, obs, github, twitch, zoom, discord, spotify, slack, teams, telegram, notion, browser, system, googlemeet, vscode, youtube, gmail, whatsapp, figma, x, chatgpt, figma, airdrop]
         actionValue:
           type: string
         position:

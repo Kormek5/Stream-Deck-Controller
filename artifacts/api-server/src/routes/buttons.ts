@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { db, buttonsTable, activityTable, profilesTable } from "@workspace/db";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and, isNull } from "drizzle-orm";
 import {
   CreateButtonBody,
   UpdateButtonBody,
@@ -14,9 +14,22 @@ const router = Router();
 
 router.get("/profiles/:id/buttons", async (req, res) => {
   const { id } = ListButtonsParams.parse({ id: Number(req.params.id) });
-  const buttons = await db.select().from(buttonsTable)
-    .where(eq(buttonsTable.profileId, id))
-    .orderBy(buttonsTable.position);
+  const folderIdParam = req.query.folderId;
+  let buttons;
+  if (folderIdParam === "null" || folderIdParam === "") {
+    buttons = await db.select().from(buttonsTable)
+      .where(and(eq(buttonsTable.profileId, id), isNull(buttonsTable.folderId)))
+      .orderBy(buttonsTable.position);
+  } else if (folderIdParam !== undefined) {
+    const fid = Number(folderIdParam);
+    buttons = await db.select().from(buttonsTable)
+      .where(and(eq(buttonsTable.profileId, id), eq(buttonsTable.folderId, fid)))
+      .orderBy(buttonsTable.position);
+  } else {
+    buttons = await db.select().from(buttonsTable)
+      .where(eq(buttonsTable.profileId, id))
+      .orderBy(buttonsTable.position);
+  }
   res.json(buttons);
 });
 
@@ -24,6 +37,7 @@ router.post("/buttons", async (req, res) => {
   const body = CreateButtonBody.parse(req.body);
   const [button] = await db.insert(buttonsTable).values({
     profileId: body.profileId,
+    folderId: (body as any).folderId ?? null,
     label: body.label,
     icon: body.icon,
     color: body.color,
@@ -40,6 +54,7 @@ router.put("/buttons/:id", async (req, res) => {
   const [button] = await db.update(buttonsTable)
     .set({
       profileId: body.profileId,
+      folderId: (body as any).folderId ?? null,
       label: body.label,
       icon: body.icon,
       color: body.color,
@@ -315,6 +330,144 @@ router.post("/buttons/:id/execute", async (req, res) => {
         notification: "Notification Center",
       };
       message = `System: ${sysLabels[button.actionValue] ?? button.actionValue}`;
+      break;
+    }
+    case "googlemeet": {
+      const gm = parseComposite(button.actionValue);
+      const gmLabels: Record<string, string> = {
+        mute: "Mute/Unmute Microphone",
+        video: "Toggle Camera",
+        screenshare: "Share Screen",
+        hand: "Raise Hand",
+        leave: "Leave Meeting",
+        chat: "Open Chat",
+        captions: "Toggle Captions",
+        reactions: "Send Reaction",
+        join: `Join Meeting${gm.link ? `: ${gm.link}` : ""}`,
+        newmeeting: "Start New Meeting",
+        record: "Start/Stop Recording",
+      };
+      message = `Google Meet: ${gmLabels[gm.command ?? ""] ?? gm.command ?? "action triggered"}`;
+      break;
+    }
+    case "vscode": {
+      const vsLabels: Record<string, string> = {
+        terminal: "New Terminal",
+        format: "Format Document",
+        save: "Save All Files",
+        debug: "Start Debugging",
+        sidebar: "Toggle Sidebar",
+        explorer: "Open Explorer",
+        extensions: "Open Extensions",
+        command: "Open Command Palette",
+        zen: "Toggle Zen Mode",
+        split: "Split Editor",
+        closetab: "Close Current Tab",
+        "open-file": "Open File",
+        runtask: "Run Task",
+        settings: "Open Settings",
+        git: "Open Source Control",
+      };
+      message = `VS Code: ${vsLabels[button.actionValue] ?? button.actionValue}`;
+      break;
+    }
+    case "youtube": {
+      const ytLabels: Record<string, string> = {
+        open: "Open YouTube",
+        subscriptions: "Open Subscriptions",
+        watchlater: "Watch Later",
+        trending: "Open Trending",
+        history: "View History",
+        library: "Open Library",
+        studio: "Open YouTube Studio",
+        search: "Search",
+        "open-channel": "Open Channel",
+        liked: "Liked Videos",
+        notifications: "Open Notifications",
+      };
+      message = `YouTube: ${ytLabels[button.actionValue] ?? button.actionValue}`;
+      break;
+    }
+    case "gmail": {
+      const gmailLabels: Record<string, string> = {
+        compose: "Compose New Email",
+        inbox: "Open Inbox",
+        starred: "Open Starred",
+        snoozed: "Open Snoozed",
+        sent: "Open Sent",
+        drafts: "Open Drafts",
+        search: "Search Emails",
+        spam: "Open Spam",
+        meet: "Start Meet from Gmail",
+      };
+      message = `Gmail: ${gmailLabels[button.actionValue] ?? button.actionValue}`;
+      break;
+    }
+    case "whatsapp": {
+      const wa = parseComposite(button.actionValue);
+      const waLabels: Record<string, string> = {
+        open: "Open WhatsApp",
+        "new-chat": `New Message${wa.contact ? ` to ${wa.contact}` : ""}`,
+        "open-chat": `Open Chat${wa.contact ? `: ${wa.contact}` : ""}`,
+        calls: "Open Calls",
+        status: "Open Status",
+        groups: "Open Groups",
+        communities: "Open Communities",
+      };
+      message = `WhatsApp: ${waLabels[wa.command ?? ""] ?? wa.command ?? "action triggered"}`;
+      break;
+    }
+    case "figma": {
+      const figmaLabels: Record<string, string> = {
+        open: "Open Figma",
+        "new-file": "Create New File",
+        "open-file": "Open File",
+        community: "Open Community",
+        drafts: "Open Drafts",
+        "hand-tool": "Hand Tool",
+        "frame-tool": "Frame Tool",
+        component: "Toggle Component Properties",
+        "dev-mode": "Toggle Dev Mode",
+        preview: "Open Preview",
+        "zoom-fit": "Zoom to Fit",
+        grid: "Toggle Layout Grid",
+        rulers: "Toggle Rulers",
+      };
+      message = `Figma: ${figmaLabels[button.actionValue] ?? button.actionValue}`;
+      break;
+    }
+    case "x": {
+      const xLabels: Record<string, string> = {
+        home: "Open X Home",
+        compose: "New Post",
+        notifications: "Open Notifications",
+        messages: "Open Messages",
+        explore: "Open Explore",
+        bookmarks: "Open Bookmarks",
+        profile: "Open Profile",
+        grok: "Open Grok",
+        lists: "Open Lists",
+        spaces: "Open Spaces",
+      };
+      message = `X (Twitter): ${xLabels[button.actionValue] ?? button.actionValue}`;
+      break;
+    }
+    case "chatgpt": {
+      const cgLabels: Record<string, string> = {
+        open: "Open ChatGPT",
+        "new-chat": "New Chat",
+        gpts: "Open GPT Store",
+        explore: "Explore GPTs",
+        history: "Open Chat History",
+        voice: "Start Voice Mode",
+        canvas: "Open Canvas Mode",
+        dalle: "Open Image Generation",
+      };
+      message = `ChatGPT: ${cgLabels[button.actionValue] ?? button.actionValue}`;
+      break;
+    }
+    case "airdrop": {
+      message = `AirDrop: Share file`;
       break;
     }
     default:

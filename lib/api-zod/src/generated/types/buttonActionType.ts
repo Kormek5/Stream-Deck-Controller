@@ -29,4 +29,13 @@ export const ButtonActionType = {
   notion: "notion",
   browser: "browser",
   system: "system",
+  googlemeet: "googlemeet",
+  vscode: "vscode",
+  youtube: "youtube",
+  gmail: "gmail",
+  whatsapp: "whatsapp",
+  figma: "figma",
+  x: "x",
+  chatgpt: "chatgpt",
+  airdrop: "airdrop",
 } as const;

@@ -14,9 +14,23 @@ export const insertProfileSchema = createInsertSchema(profilesTable).omit({ id: 
 export type InsertProfile = z.infer<typeof insertProfileSchema>;
 export type Profile = typeof profilesTable.$inferSelect;
 
+export const foldersTable = pgTable("folders", {
+  id: serial("id").primaryKey(),
+  profileId: integer("profile_id").notNull().references(() => profilesTable.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  color: text("color").notNull().default("slate"),
+  icon: text("icon").notNull().default("Folder"),
+  position: integer("position").notNull().default(0),
+});
+
+export const insertFolderSchema = createInsertSchema(foldersTable).omit({ id: true });
+export type InsertFolder = z.infer<typeof insertFolderSchema>;
+export type Folder = typeof foldersTable.$inferSelect;
+
 export const buttonsTable = pgTable("buttons", {
   id: serial("id").primaryKey(),
   profileId: integer("profile_id").notNull().references(() => profilesTable.id, { onDelete: "cascade" }),
+  folderId: integer("folder_id").references(() => foldersTable.id, { onDelete: "cascade" }),
   label: text("label").notNull(),
   icon: text("icon").notNull().default("Zap"),
   color: text("color").notNull().default("teal"),

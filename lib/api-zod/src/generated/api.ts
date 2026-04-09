@@ -85,9 +85,14 @@ export const ListButtonsParams = zod.object({
   id: zod.coerce.number(),
 });
 
+export const ListButtonsQueryParams = zod.object({
+  folderId: zod.coerce.number().nullish(),
+});
+
 export const ListButtonsResponseItem = zod.object({
   id: zod.number(),
   profileId: zod.number(),
+  folderId: zod.number().nullish(),
   label: zod.string(),
   icon: zod.string(),
   color: zod.string(),
@@ -111,6 +116,15 @@ export const ListButtonsResponseItem = zod.object({
     "notion",
     "browser",
     "system",
+    "googlemeet",
+    "vscode",
+    "youtube",
+    "gmail",
+    "whatsapp",
+    "figma",
+    "x",
+    "chatgpt",
+    "airdrop",
   ]),
   actionValue: zod.string(),
   position: zod.number(),
@@ -120,10 +134,70 @@ export const ListButtonsResponseItem = zod.object({
 export const ListButtonsResponse = zod.array(ListButtonsResponseItem);
 
 /**
+ * @summary List folders in a profile
+ */
+export const ListFoldersParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const ListFoldersResponseItem = zod.object({
+  id: zod.number(),
+  profileId: zod.number(),
+  name: zod.string(),
+  color: zod.string(),
+  icon: zod.string(),
+  position: zod.number(),
+});
+export const ListFoldersResponse = zod.array(ListFoldersResponseItem);
+
+/**
+ * @summary Create a folder
+ */
+export const CreateFolderBody = zod.object({
+  profileId: zod.number(),
+  name: zod.string(),
+  color: zod.string(),
+  icon: zod.string(),
+  position: zod.number(),
+});
+
+/**
+ * @summary Update a folder
+ */
+export const UpdateFolderParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const UpdateFolderBody = zod.object({
+  profileId: zod.number(),
+  name: zod.string(),
+  color: zod.string(),
+  icon: zod.string(),
+  position: zod.number(),
+});
+
+export const UpdateFolderResponse = zod.object({
+  id: zod.number(),
+  profileId: zod.number(),
+  name: zod.string(),
+  color: zod.string(),
+  icon: zod.string(),
+  position: zod.number(),
+});
+
+/**
+ * @summary Delete a folder
+ */
+export const DeleteFolderParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+/**
  * @summary Create a button
  */
 export const CreateButtonBody = zod.object({
   profileId: zod.number(),
+  folderId: zod.number().nullish(),
   label: zod.string(),
   icon: zod.string(),
   color: zod.string(),
@@ -147,6 +221,15 @@ export const CreateButtonBody = zod.object({
     "notion",
     "browser",
     "system",
+    "googlemeet",
+    "vscode",
+    "youtube",
+    "gmail",
+    "whatsapp",
+    "figma",
+    "x",
+    "chatgpt",
+    "airdrop",
   ]),
   actionValue: zod.string(),
   position: zod.number(),
@@ -161,6 +244,7 @@ export const UpdateButtonParams = zod.object({
 
 export const UpdateButtonBody = zod.object({
   profileId: zod.number(),
+  folderId: zod.number().nullish(),
   label: zod.string(),
   icon: zod.string(),
   color: zod.string(),
@@ -184,6 +268,15 @@ export const UpdateButtonBody = zod.object({
     "notion",
     "browser",
     "system",
+    "googlemeet",
+    "vscode",
+    "youtube",
+    "gmail",
+    "whatsapp",
+    "figma",
+    "x",
+    "chatgpt",
+    "airdrop",
   ]),
   actionValue: zod.string(),
   position: zod.number(),
@@ -192,6 +285,7 @@ export const UpdateButtonBody = zod.object({
 export const UpdateButtonResponse = zod.object({
   id: zod.number(),
   profileId: zod.number(),
+  folderId: zod.number().nullish(),
   label: zod.string(),
   icon: zod.string(),
   color: zod.string(),
@@ -215,6 +309,15 @@ export const UpdateButtonResponse = zod.object({
     "notion",
     "browser",
     "system",
+    "googlemeet",
+    "vscode",
+    "youtube",
+    "gmail",
+    "whatsapp",
+    "figma",
+    "x",
+    "chatgpt",
+    "airdrop",
   ]),
   actionValue: zod.string(),
   position: zod.number(),

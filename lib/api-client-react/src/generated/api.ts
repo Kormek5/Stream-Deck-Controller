@@ -20,9 +20,12 @@ import type {
   ActivityEntry,
   Button,
   CreateButtonBody,
+  CreateFolderBody,
   CreateProfileBody,
   ExecutionResult,
+  Folder,
   HealthStatus,
+  ListButtonsParams,
   Profile,
   Stats,
 } from "./api.schemas";
@@ -533,22 +536,38 @@ export const useDeleteProfile = <
 /**
  * @summary List buttons in a profile
  */
-export const getListButtonsUrl = (id: number) => {
-  return `/api/profiles/${id}/buttons`;
+export const getListButtonsUrl = (id: number, params?: ListButtonsParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/profiles/${id}/buttons?${stringifiedParams}`
+    : `/api/profiles/${id}/buttons`;
 };
 
 export const listButtons = async (
   id: number,
+  params?: ListButtonsParams,
   options?: RequestInit,
 ): Promise<Button[]> => {
-  return customFetch<Button[]>(getListButtonsUrl(id), {
+  return customFetch<Button[]>(getListButtonsUrl(id, params), {
     ...options,
     method: "GET",
   });
 };
 
-export const getListButtonsQueryKey = (id: number) => {
-  return [`/api/profiles/${id}/buttons`] as const;
+export const getListButtonsQueryKey = (
+  id: number,
+  params?: ListButtonsParams,
+) => {
+  return [`/api/profiles/${id}/buttons`, ...(params ? [params] : [])] as const;
 };
 
 export const getListButtonsQueryOptions = <
@@ -556,6 +575,7 @@ export const getListButtonsQueryOptions = <
   TError = ErrorType<unknown>,
 >(
   id: number,
+  params?: ListButtonsParams,
   options?: {
     query?: UseQueryOptions<
       Awaited<ReturnType<typeof listButtons>>,
@@ -567,11 +587,11 @@ export const getListButtonsQueryOptions = <
 ) => {
   const { query: queryOptions, request: requestOptions } = options ?? {};
 
-  const queryKey = queryOptions?.queryKey ?? getListButtonsQueryKey(id);
+  const queryKey = queryOptions?.queryKey ?? getListButtonsQueryKey(id, params);
 
   const queryFn: QueryFunction<Awaited<ReturnType<typeof listButtons>>> = ({
     signal,
-  }) => listButtons(id, { signal, ...requestOptions });
+  }) => listButtons(id, params, { signal, ...requestOptions });
 
   return {
     queryKey,
@@ -599,6 +619,7 @@ export function useListButtons<
   TError = ErrorType<unknown>,
 >(
   id: number,
+  params?: ListButtonsParams,
   options?: {
     query?: UseQueryOptions<
       Awaited<ReturnType<typeof listButtons>>,
@@ -608,7 +629,7 @@ export function useListButtons<
     request?: SecondParameter<typeof customFetch>;
   },
 ): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
-  const queryOptions = getListButtonsQueryOptions(id, options);
+  const queryOptions = getListButtonsQueryOptions(id, params, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;
@@ -616,6 +637,350 @@ export function useListButtons<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary List folders in a profile
+ */
+export const getListFoldersUrl = (id: number) => {
+  return `/api/profiles/${id}/folders`;
+};
+
+export const listFolders = async (
+  id: number,
+  options?: RequestInit,
+): Promise<Folder[]> => {
+  return customFetch<Folder[]>(getListFoldersUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListFoldersQueryKey = (id: number) => {
+  return [`/api/profiles/${id}/folders`] as const;
+};
+
+export const getListFoldersQueryOptions = <
+  TData = Awaited<ReturnType<typeof listFolders>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listFolders>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListFoldersQueryKey(id);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listFolders>>> = ({
+    signal,
+  }) => listFolders(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listFolders>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListFoldersQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listFolders>>
+>;
+export type ListFoldersQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List folders in a profile
+ */
+
+export function useListFolders<
+  TData = Awaited<ReturnType<typeof listFolders>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listFolders>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListFoldersQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Create a folder
+ */
+export const getCreateFolderUrl = () => {
+  return `/api/folders`;
+};
+
+export const createFolder = async (
+  createFolderBody: CreateFolderBody,
+  options?: RequestInit,
+): Promise<Folder> => {
+  return customFetch<Folder>(getCreateFolderUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createFolderBody),
+  });
+};
+
+export const getCreateFolderMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createFolder>>,
+    TError,
+    { data: BodyType<CreateFolderBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createFolder>>,
+  TError,
+  { data: BodyType<CreateFolderBody> },
+  TContext
+> => {
+  const mutationKey = ["createFolder"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createFolder>>,
+    { data: BodyType<CreateFolderBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createFolder(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateFolderMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createFolder>>
+>;
+export type CreateFolderMutationBody = BodyType<CreateFolderBody>;
+export type CreateFolderMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create a folder
+ */
+export const useCreateFolder = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createFolder>>,
+    TError,
+    { data: BodyType<CreateFolderBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createFolder>>,
+  TError,
+  { data: BodyType<CreateFolderBody> },
+  TContext
+> => {
+  return useMutation(getCreateFolderMutationOptions(options));
+};
+
+/**
+ * @summary Update a folder
+ */
+export const getUpdateFolderUrl = (id: number) => {
+  return `/api/folders/${id}`;
+};
+
+export const updateFolder = async (
+  id: number,
+  createFolderBody: CreateFolderBody,
+  options?: RequestInit,
+): Promise<Folder> => {
+  return customFetch<Folder>(getUpdateFolderUrl(id), {
+    ...options,
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createFolderBody),
+  });
+};
+
+export const getUpdateFolderMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateFolder>>,
+    TError,
+    { id: number; data: BodyType<CreateFolderBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof updateFolder>>,
+  TError,
+  { id: number; data: BodyType<CreateFolderBody> },
+  TContext
+> => {
+  const mutationKey = ["updateFolder"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof updateFolder>>,
+    { id: number; data: BodyType<CreateFolderBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return updateFolder(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UpdateFolderMutationResult = NonNullable<
+  Awaited<ReturnType<typeof updateFolder>>
+>;
+export type UpdateFolderMutationBody = BodyType<CreateFolderBody>;
+export type UpdateFolderMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Update a folder
+ */
+export const useUpdateFolder = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof updateFolder>>,
+    TError,
+    { id: number; data: BodyType<CreateFolderBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof updateFolder>>,
+  TError,
+  { id: number; data: BodyType<CreateFolderBody> },
+  TContext
+> => {
+  return useMutation(getUpdateFolderMutationOptions(options));
+};
+
+/**
+ * @summary Delete a folder
+ */
+export const getDeleteFolderUrl = (id: number) => {
+  return `/api/folders/${id}`;
+};
+
+export const deleteFolder = async (
+  id: number,
+  options?: RequestInit,
+): Promise<void> => {
+  return customFetch<void>(getDeleteFolderUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteFolderMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteFolder>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteFolder>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["deleteFolder"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteFolder>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteFolder(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteFolderMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteFolder>>
+>;
+
+export type DeleteFolderMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Delete a folder
+ */
+export const useDeleteFolder = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteFolder>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteFolder>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeleteFolderMutationOptions(options));
+};
 
 /**
  * @summary Create a button

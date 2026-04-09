@@ -10,6 +10,7 @@ import type { ButtonActionType } from "./buttonActionType";
 export interface Button {
   id: number;
   profileId: number;
+  folderId?: number | null;
   label: string;
   icon: string;
   color: string;

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -48,7 +48,7 @@ const formSchema = z.object({
   label: z.string().min(1, "Label is required").max(20),
   icon: z.string().min(1, "Icon is required"),
   color: z.string().min(1, "Color is required"),
-  actionType: z.enum(["url", "hotkey", "script", "vpn", "steam", "app", "media", "obs", "github", "twitch", "zoom", "discord", "spotify", "slack", "teams", "telegram", "notion", "browser", "system"]),
+  actionType: z.enum(["url", "hotkey", "script", "vpn", "steam", "app", "media", "obs", "github", "twitch", "zoom", "discord", "spotify", "slack", "teams", "telegram", "notion", "browser", "system", "googlemeet", "vscode", "youtube", "gmail", "whatsapp", "figma", "x", "chatgpt", "airdrop"]),
   actionValue: z.string(),
   position: z.number().int().min(0).max(29),
 });
@@ -58,6 +58,8 @@ interface Props {
   onOpenChange: (open: boolean) => void;
   profileId: number;
   button: ButtonType | null;
+  folderId?: number | null;
+  folders?: Array<{ id: number; name: string; color: string }>;
 }
 
 function ActionValueField({
@@ -209,7 +211,7 @@ function ActionValueField({
   );
 }
 
-export function ButtonEditorModal({ open, onOpenChange, profileId, button }: Props) {
+export function ButtonEditorModal({ open, onOpenChange, profileId, button, folderId, folders = [] }: Props) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -263,13 +265,20 @@ export function ButtonEditorModal({ open, onOpenChange, profileId, button }: Pro
     }
   }, [watchedActionType]);
 
+  const [selectedFolderId, setSelectedFolderId] = useState<number | null>(folderId ?? button?.folderId ?? null);
+
+  useEffect(() => {
+    setSelectedFolderId(folderId ?? button?.folderId ?? null);
+  }, [open, folderId, button]);
+
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
     try {
       const payload = {
         ...values,
         actionType: values.actionType as CreateButtonBodyActionType,
         profileId,
-      };
+        folderId: selectedFolderId,
+      } as any;
       if (button) {
         await updateBtn.mutateAsync({ id: button.id, data: payload });
         toast({ title: "Button updated" });
@@ -390,6 +399,29 @@ export function ButtonEditorModal({ open, onOpenChange, profileId, button }: Pro
                 )}
               />
             </div>
+
+            {/* Folder assignment — only show when there are folders */}
+            {folders.length > 0 && (
+              <div className="space-y-1">
+                <label className="text-sm font-medium leading-none">Folder</label>
+                <Select
+                  value={selectedFolderId?.toString() ?? "none"}
+                  onValueChange={(v) => setSelectedFolderId(v === "none" ? null : Number(v))}
+                >
+                  <SelectTrigger className="bg-input border-border">
+                    <SelectValue placeholder="No folder (root)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No folder (root)</SelectItem>
+                    {folders.map((f) => (
+                      <SelectItem key={f.id} value={f.id.toString()}>
+                        📁 {f.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
 
             <FormField
               control={form.control}
