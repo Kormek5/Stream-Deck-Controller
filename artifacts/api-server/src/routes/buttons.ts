@@ -478,6 +478,25 @@ router.post("/buttons/:id/execute", async (req, res) => {
       message = `Multi-action: ${stepCount} step${stepCount !== 1 ? "s" : ""} (${button.label})`;
       break;
     }
+    case "clipboard": {
+      const clip = parseComposite(button.actionValue);
+      if (clip.command === "copy-date") message = `Clipboard: Copy current date`;
+      else if (clip.command === "copy-time") message = `Clipboard: Copy current time`;
+      else if (clip.command === "copy-datetime") message = `Clipboard: Copy date & time`;
+      else if (clip.command === "paste") message = `Clipboard: Paste`;
+      else message = `Clipboard: Copy text`;
+      break;
+    }
+    case "type": {
+      const preview = (button.actionValue || "").slice(0, 40);
+      message = `Type text: "${preview}${button.actionValue.length > 40 ? "…" : ""}"`;
+      break;
+    }
+    case "notification": {
+      const notif = parseComposite(button.actionValue);
+      message = `Notification: ${notif.title || button.label}`;
+      break;
+    }
     default:
       message = `Action executed: ${button.label}`;
   }

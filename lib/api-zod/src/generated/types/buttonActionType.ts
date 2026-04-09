@@ -39,4 +39,7 @@ export const ButtonActionType = {
   chatgpt: "chatgpt",
   airdrop: "airdrop",
   multi: "multi",
+  clipboard: "clipboard",
+  type: "type",
+  notification: "notification",
 } as const;

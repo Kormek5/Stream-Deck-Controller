@@ -72,6 +72,10 @@ export const ButtonActionType = {
   x: "x",
   chatgpt: "chatgpt",
   airdrop: "airdrop",
+  multi: "multi",
+  clipboard: "clipboard",
+  type: "type",
+  notification: "notification",
 } as const;
 
 export interface Button {
@@ -120,6 +124,10 @@ export const CreateButtonBodyActionType = {
   x: "x",
   chatgpt: "chatgpt",
   airdrop: "airdrop",
+  multi: "multi",
+  clipboard: "clipboard",
+  type: "type",
+  notification: "notification",
 } as const;
 
 export interface CreateButtonBody {

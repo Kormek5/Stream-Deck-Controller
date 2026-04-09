@@ -634,6 +634,80 @@ async function handleExecute(button) {
         break;
       }
 
+      case "clipboard": {
+        let clip = {};
+        try { clip = JSON.parse(actionValue); } catch { clip = { command: "copy-text", text: actionValue }; }
+        const cmd = clip.command || "copy-text";
+        if (cmd === "paste") {
+          // Trigger paste shortcut
+          if (platform === "win32") await runPsScript(`Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait("^v")`);
+          else if (platform === "darwin") await exec("osascript -e 'tell app \"System Events\" to keystroke \"v\" using command down'");
+          else await exec("xdotool key ctrl+v");
+        } else {
+          // Copy text to clipboard
+          let text = clip.text || "";
+          if (cmd === "copy-date") text = new Date().toLocaleDateString();
+          else if (cmd === "copy-time") text = new Date().toLocaleTimeString();
+          else if (cmd === "copy-datetime") text = new Date().toLocaleString();
+          if (text) {
+            const escaped = text.replace(/'/g, "\\'");
+            if (platform === "win32") await runPsScript(`Set-Clipboard -Value '${escaped}'`);
+            else if (platform === "darwin") await exec(`echo '${escaped}' | pbcopy`);
+            else await exec(`echo '${escaped}' | xclip -selection clipboard || echo '${escaped}' | xsel --clipboard --input`);
+            console.log(`  → Copied to clipboard: "${text.slice(0, 40)}${text.length > 40 ? "…" : ""}"`);
+          }
+        }
+        break;
+      }
+
+      case "type": {
+        if (!actionValue) break;
+        if (platform === "win32") {
+          // Use PowerShell to type text via SendKeys
+          const safeText = actionValue.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
+          await runPsScript(
+            `Add-Type -AssemblyName System.Windows.Forms\n` +
+            `$text = '${safeText}'\n` +
+            `[System.Windows.Forms.SendKeys]::SendWait($text)`
+          );
+        } else if (platform === "darwin") {
+          const safeText = actionValue.replace(/'/g, "\\'");
+          await exec(`osascript -e 'tell app "System Events" to type text "${safeText}"'`);
+        } else {
+          const safeText = actionValue.replace(/'/g, "\\'");
+          await exec(`xdotool type '${safeText}'`);
+        }
+        console.log(`  → Typed text (${actionValue.length} chars)`);
+        break;
+      }
+
+      case "notification": {
+        let notif = {};
+        try { notif = JSON.parse(actionValue); } catch { notif = { title: label, message: actionValue }; }
+        const title = (notif.title || label || "StreamDeck").replace(/'/g, "\\'");
+        const message = (notif.message || "").replace(/'/g, "\\'");
+        if (platform === "win32") {
+          await runPsScript(
+            `Add-Type -AssemblyName System.Windows.Forms\n` +
+            `$balloon = New-Object System.Windows.Forms.NotifyIcon\n` +
+            `$balloon.Icon = [System.Drawing.SystemIcons]::Information\n` +
+            `$balloon.BalloonTipIcon = [System.Windows.Forms.ToolTipIcon]::Info\n` +
+            `$balloon.BalloonTipTitle = '${title}'\n` +
+            `$balloon.BalloonTipText = '${message}'\n` +
+            `$balloon.Visible = $true\n` +
+            `$balloon.ShowBalloonTip(4000)\n` +
+            `Start-Sleep -Milliseconds 5000\n` +
+            `$balloon.Dispose()`
+          );
+        } else if (platform === "darwin") {
+          await exec(`osascript -e 'display notification "${message}" with title "${title}"'`);
+        } else {
+          await exec(`notify-send '${title}' '${message}'`);
+        }
+        console.log(`  → Notification shown: ${title}`);
+        break;
+      }
+
       default: {
         // Try to get a URL for it and open in browser
         const url = getActionUrl(actionType, actionValue);

@@ -8,19 +8,22 @@ import {
   Send, FileText, Chrome, Cpu, Lock, Moon, RefreshCw, Folder,
   Clipboard, Volume1, Search, BellOff, Bell, PhoneCall, PhoneOff,
   Hand, ScreenShare, PlusCircle, ExternalLink, BookOpen, Edit,
-  Sparkles, Code2, Mail, FolderOpen, Twitter, Layers
+  Sparkles, Code2, Mail, FolderOpen, Twitter, Layers, Type
 } from "lucide-react";
 
 export const ACTION_TYPES = [
   // General
-  { value: "multi" as const,   label: "Multi-Action",         icon: Layers,       group: "General" },
-  { value: "url" as const,     label: "Open URL",              icon: Globe,        group: "General" },
-  { value: "hotkey" as const,  label: "Hotkey / Shortcut",    icon: Keyboard,     group: "General" },
-  { value: "script" as const,  label: "Run Script / Command", icon: Terminal,     group: "General" },
-  { value: "app" as const,     label: "Launch App",           icon: PlaySquare,   group: "General" },
-  { value: "media" as const,   label: "Media Control",        icon: Play,         group: "General" },
-  { value: "system" as const,  label: "System",               icon: Cpu,          group: "General" },
-  { value: "browser" as const, label: "Browser",              icon: Globe,        group: "General" },
+  { value: "multi" as const,        label: "Multi-Action",         icon: Layers,       group: "General" },
+  { value: "url" as const,          label: "Open URL",              icon: Globe,        group: "General" },
+  { value: "hotkey" as const,       label: "Hotkey / Shortcut",    icon: Keyboard,     group: "General" },
+  { value: "script" as const,       label: "Run Script / Command", icon: Terminal,     group: "General" },
+  { value: "app" as const,          label: "Launch App",           icon: PlaySquare,   group: "General" },
+  { value: "media" as const,        label: "Media Control",        icon: Play,         group: "General" },
+  { value: "system" as const,       label: "System",               icon: Cpu,          group: "General" },
+  { value: "browser" as const,      label: "Browser",              icon: Globe,        group: "General" },
+  { value: "clipboard" as const,    label: "Clipboard",            icon: Clipboard,    group: "General" },
+  { value: "type" as const,         label: "Type Text",            icon: Type,         group: "General" },
+  { value: "notification" as const, label: "Notification",         icon: Bell,         group: "General" },
   // Meetings & Chat
   { value: "zoom" as const,    label: "Zoom",                 icon: Video,        group: "Meetings" },
   { value: "teams" as const,   label: "Microsoft Teams",      icon: Users,        group: "Meetings" },
@@ -99,6 +102,40 @@ export const ACTION_VALUE_CONFIG: Record<string, {
     placeholder: "discord  or  C:\\Program Files\\App\\app.exe",
     hint: "App name or full path to the executable",
     type: "text",
+  },
+  clipboard: {
+    label: "Clipboard Action",
+    type: "composite",
+    fields: [
+      {
+        key: "command",
+        label: "Action",
+        type: "select",
+        placeholder: "copy-text",
+        options: [
+          { value: "copy-text", label: "📋 Copy custom text" },
+          { value: "copy-date", label: "📅 Copy today's date" },
+          { value: "copy-time", label: "🕐 Copy current time" },
+          { value: "copy-datetime", label: "📆 Copy date & time" },
+          { value: "paste", label: "📌 Paste (trigger shortcut)" },
+        ],
+      },
+      { key: "text", label: "Text to Copy", placeholder: "Hello, world!", type: "text" },
+    ],
+  },
+  type: {
+    label: "Text to Type",
+    placeholder: "Hello, world!\nThis text will be typed character by character",
+    hint: "Text will be typed on your PC via keyboard simulation (requires agent)",
+    type: "textarea",
+  },
+  notification: {
+    label: "Notification",
+    type: "composite",
+    fields: [
+      { key: "title", label: "Title", placeholder: "StreamDeck Alert", type: "text" },
+      { key: "message", label: "Message", placeholder: "Your notification message here", type: "text" },
+    ],
   },
   media: {
     label: "Media Command",
