@@ -1,5 +1,5 @@
 import { WebSocketServer, WebSocket } from "ws";
-import type { IncomingMessage, Server } from "http";
+import type { IncomingMessage, Server, ServerResponse } from "http";
 import { logger } from "./logger";
 
 interface AgentInfo {
@@ -10,8 +10,19 @@ interface AgentInfo {
   connectedAt: Date;
 }
 
+interface Screenshot {
+  data: string;      // data:image/png;base64,...
+  timestamp: string; // ISO string
+}
+
 const agents = new Map<string, AgentInfo>();
 let nextId = 1;
+
+// Latest screenshot in memory
+let latestScreenshot: Screenshot | null = null;
+
+// SSE subscriber callbacks: res → send function
+const sseClients = new Set<ServerResponse>();
 
 export function getAgents(): AgentInfo[] {
   return Array.from(agents.values());
@@ -19,6 +30,26 @@ export function getAgents(): AgentInfo[] {
 
 export function getAgentCount(): number {
   return agents.size;
+}
+
+export function getLatestScreenshot(): Screenshot | null {
+  return latestScreenshot;
+}
+
+export function subscribeToScreenshots(res: ServerResponse) {
+  sseClients.add(res);
+  return () => sseClients.delete(res);
+}
+
+function pushScreenshotToSseClients(shot: Screenshot) {
+  const payload = `data: ${JSON.stringify(shot)}\n\n`;
+  for (const res of sseClients) {
+    try {
+      res.write(payload);
+    } catch {
+      sseClients.delete(res);
+    }
+  }
 }
 
 export function sendToAllAgents(message: object): number {
@@ -58,6 +89,14 @@ export function attachWebSocket(server: Server) {
           agent.platform = String(msg.platform ?? "unknown");
           agent.hostname = String(msg.hostname ?? "unknown");
           logger.info({ id, platform: agent.platform, hostname: agent.hostname }, "Agent identified");
+        } else if (msg.type === "screenshot_result" && typeof msg.data === "string") {
+          const shot: Screenshot = {
+            data: msg.data,
+            timestamp: typeof msg.timestamp === "string" ? msg.timestamp : new Date().toISOString(),
+          };
+          latestScreenshot = shot;
+          logger.info({ id }, "Screenshot received from agent");
+          pushScreenshotToSseClients(shot);
         }
       } catch {
         logger.warn({ id }, "Invalid agent message");

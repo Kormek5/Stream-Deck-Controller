@@ -15,6 +15,7 @@
 const { execSync, exec } = require("child_process");
 const os = require("os");
 const path = require("path");
+const fs = require("fs");
 const https = require("https");
 const http = require("http");
 
@@ -318,7 +319,11 @@ async function handleExecute(button) {
       }
 
       case "system": {
-        await executeSystemAction(actionValue);
+        if (actionValue === "screenshot") {
+          await takeAndSendScreenshot();
+        } else {
+          await executeSystemAction(actionValue);
+        }
         break;
       }
 
@@ -499,6 +504,32 @@ function buildWsUrl(base) {
 }
 
 let reconnectDelay = 2000;
+let activeWs = null; // module-level ref so handlers can send messages back
+
+// ── Take screenshot and send to server ───────────────────────────────────────
+async function takeAndSendScreenshot() {
+  const tmpFile = path.join(os.tmpdir(), "streamdeck_screenshot.png");
+
+  if (platform === "win32") {
+    // Save to temp path - no unicode in path needed
+    const ps = `Add-Type -AssemblyName System.Windows.Forms; Add-Type -AssemblyName System.Drawing; $bmp = New-Object System.Drawing.Bitmap([System.Windows.Forms.Screen]::PrimaryScreen.Bounds.Width,[System.Windows.Forms.Screen]::PrimaryScreen.Bounds.Height); $g = [System.Drawing.Graphics]::FromImage($bmp); $g.CopyFromScreen(0,0,0,0,$bmp.Size); $bmp.Save('${tmpFile.replace(/\\/g, "\\\\")}'); $g.Dispose(); $bmp.Dispose()`;
+    await run(`powershell -NoProfile -NonInteractive -Command "${ps}"`, { shell: true });
+  } else if (platform === "darwin") {
+    await run(`screencapture -x '${tmpFile}'`);
+  } else {
+    await run(`scrot '${tmpFile}' 2>/dev/null || import -window root '${tmpFile}'`);
+  }
+
+  const buf = fs.readFileSync(tmpFile);
+  const dataUrl = "data:image/png;base64," + buf.toString("base64");
+
+  if (activeWs && activeWs.readyState === WebSocket.OPEN) {
+    activeWs.send(JSON.stringify({ type: "screenshot_result", data: dataUrl, timestamp: new Date().toISOString() }));
+    console.log("  📷 Screenshot sent to server (" + Math.round(buf.length / 1024) + " KB)");
+  } else {
+    console.log("  ⚠️  Screenshot taken but agent not connected, cannot send");
+  }
+}
 
 function connect() {
   const wsUrl = buildWsUrl(serverUrl);
@@ -507,6 +538,8 @@ function connect() {
   const ws = new WebSocket(wsUrl, {
     rejectUnauthorized: false, // allow self-signed certs in dev
   });
+
+  activeWs = ws;
 
   ws.on("open", () => {
     reconnectDelay = 2000;
