@@ -847,36 +847,51 @@ let streamHeight   = 1080;
 async function captureFrame(ws) {
   if (!ws || ws.readyState !== WebSocket.OPEN || frameCapturing) return;
   frameCapturing = true;
-  const tmpFile = path.join(os.tmpdir(), "sd_live.jpg");
+  const tmpJpg = path.join(os.tmpdir(), "sd_live_frame.jpg");
+  const tmpTxt = path.join(os.tmpdir(), "sd_live_res.txt");
+
   try {
     if (platform === "win32") {
-      // GDI+ screenshot → JPEG 40%  (one PS call, fast after JIT warmup)
-      const ps = [
-        "Add-Type -AssemblyName System.Windows.Forms,System.Drawing;",
-        "$s=[System.Windows.Forms.Screen]::PrimaryScreen.Bounds;",
-        "$b=New-Object System.Drawing.Bitmap($s.Width,$s.Height);",
-        "$g=[System.Drawing.Graphics]::FromImage($b);$g.CopyFromScreen(0,0,0,0,$b.Size);$g.Dispose();",
-        "$c=[System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders()|?{$_.MimeType-eq'image/jpeg'};",
-        "$p=New-Object System.Drawing.Imaging.EncoderParameters(1);",
-        "$p.Param[0]=New-Object System.Drawing.Imaging.EncoderParameter([System.Drawing.Imaging.Encoder]::Quality,40L);",
-        `$b.Save('${tmpFile.replace(/\\/g, "\\\\")}', $c, $p);`,
-        "Write-Output ($s.Width.ToString()+' '+$s.Height.ToString());",
-        "$b.Dispose()"
-      ].join("");
-      const info = await run(`powershell -NoProfile -NonInteractive -Command "${ps}"`, { shell: true, timeout: 8000 });
-      const parts = info.trim().split(/\s+/);
-      if (parts.length >= 2) { streamWidth = parseInt(parts[0]) || 1920; streamHeight = parseInt(parts[1]) || 1080; }
-    } else if (platform === "darwin") {
-      await run(`screencapture -x -t jpeg '${tmpFile}'`);
+      // Write PS1 to temp file (avoids all cmd.exe quoting/dollar-sign issues)
+      const jpgEsc = tmpJpg.replace(/\\/g, "\\\\");
+      const txtEsc = tmpTxt.replace(/\\/g, "\\\\");
+      await runPsScript(`
+Add-Type -AssemblyName System.Windows.Forms,System.Drawing
+$s  = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+$bmp = New-Object System.Drawing.Bitmap($s.Width, $s.Height)
+$gfx = [System.Drawing.Graphics]::FromImage($bmp)
+$gfx.CopyFromScreen(0, 0, 0, 0, $bmp.Size)
+$gfx.Dispose()
+$codec = [System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders() |
+         Where-Object { $_.MimeType -eq 'image/jpeg' }
+$enc   = New-Object System.Drawing.Imaging.EncoderParameters(1)
+$enc.Param[0] = New-Object System.Drawing.Imaging.EncoderParameter(
+    [System.Drawing.Imaging.Encoder]::Quality, 40L)
+$bmp.Save("${jpgEsc}", $codec, $enc)
+$bmp.Dispose()
+Set-Content -Path "${txtEsc}" -Value ($s.Width.ToString() + " " + $s.Height.ToString()) -NoNewline
+`);
       try {
-        const info = await run(`sips -g pixelWidth -g pixelHeight '${tmpFile}'`);
-        const matches = info.match(/pixelWidth:\s*(\d+)[\s\S]*pixelHeight:\s*(\d+)/);
-        if (matches) { streamWidth = parseInt(matches[1]); streamHeight = parseInt(matches[2]); }
+        const res = fs.readFileSync(tmpTxt, "utf8").trim();
+        const parts = res.split(/\s+/);
+        if (parts.length >= 2) {
+          const w = parseInt(parts[0]); const h = parseInt(parts[1]);
+          if (w > 0 && h > 0) { streamWidth = w; streamHeight = h; }
+        }
+      } catch {}
+
+    } else if (platform === "darwin") {
+      await run(`screencapture -x -t jpeg '${tmpJpg}'`);
+      try {
+        const info = await run(`sips -g pixelWidth -g pixelHeight '${tmpJpg}'`);
+        const m = info.match(/pixelWidth:\s*(\d+)[\s\S]*pixelHeight:\s*(\d+)/);
+        if (m) { streamWidth = parseInt(m[1]); streamHeight = parseInt(m[2]); }
       } catch {}
     } else {
-      await run(`scrot -q 40 '${tmpFile}' 2>/dev/null || import -window root -quality 40 '${tmpFile}'`);
+      await run(`scrot -q 40 '${tmpJpg}' 2>/dev/null || import -window root -quality 40 '${tmpJpg}'`);
     }
-    const buf = fs.readFileSync(tmpFile);
+
+    const buf = fs.readFileSync(tmpJpg);
     ws.send(JSON.stringify({
       type: "frame",
       data: "data:image/jpeg;base64," + buf.toString("base64"),
@@ -885,9 +900,10 @@ async function captureFrame(ws) {
       timestamp: Date.now(),
     }));
   } catch (e) {
-    // Suppress noisy frame errors during streaming
+    console.error("  ⚠️  Frame capture error:", e.message);
   } finally {
-    try { fs.unlinkSync(tmpFile); } catch {}
+    try { fs.unlinkSync(tmpJpg); } catch {}
+    try { fs.unlinkSync(tmpTxt); } catch {}
     frameCapturing = false;
   }
 }
@@ -1150,9 +1166,11 @@ function connect() {
       handleTerminalExec(String(msg.execId), String(msg.command), ws);
     } else if (msg.type === "stream-start") {
       if (!streamTimer) {
-        console.log("  📹 Live stream started");
-        captureFrame(ws);
+        console.log("  📹 Live stream starting — capturing first frame…");
+        captureFrame(ws).then(() => console.log("  📹 First frame sent")).catch(e => console.error("  ❌ First frame failed:", e.message));
         streamTimer = setInterval(() => captureFrame(ws), 450); // ~2fps
+      } else {
+        console.log("  📹 Stream already running");
       }
     } else if (msg.type === "stream-stop") {
       if (streamTimer) { clearInterval(streamTimer); streamTimer = null; }
