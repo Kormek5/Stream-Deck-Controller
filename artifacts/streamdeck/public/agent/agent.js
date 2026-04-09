@@ -838,6 +838,124 @@ async function handleExecute(button) {
   }
 }
 
+// ── System Stats & Monitor ─────────────────────────────────────────────────────
+
+// CPU% — two-sample approach (compares cpu times over ~600ms interval)
+function _cpuTimes() {
+  const cpus = os.cpus();
+  let total = 0, idle = 0;
+  for (const c of cpus) {
+    for (const v of Object.values(c.times)) total += v;
+    idle += c.times.idle;
+  }
+  return { total, idle };
+}
+let _prevCpu = _cpuTimes();
+
+function getCpuPct() {
+  return new Promise((resolve) => {
+    setTimeout(() => {
+      const curr = _cpuTimes();
+      const tDiff = curr.total - _prevCpu.total;
+      const iDiff = curr.idle  - _prevCpu.idle;
+      _prevCpu = curr;
+      const pct = tDiff > 0 ? Math.round((1 - iDiff / tDiff) * 100) : 0;
+      resolve(Math.max(0, Math.min(100, pct)));
+    }, 600);
+  });
+}
+
+async function getDiskStats() {
+  try {
+    if (platform === "win32") {
+      // Get all local drives quickly
+      const raw = await run(
+        `powershell -NoProfile -c "Get-PSDrive -PSProvider FileSystem | ForEach-Object { $_.Name+':'+($_.Used+$_.Free)+':'+$_.Free } | Where-Object { $_ -match '^[A-Z]:' }"`,
+        { timeout: 6000 }
+      );
+      return raw.split("\n")
+        .map(l => l.trim()).filter(Boolean)
+        .map(l => {
+          const parts = l.split(":");
+          // label:total:free  e.g. "C:200000000:50000000"
+          const label = parts[0] + ":";
+          const total = parseInt(parts[1]);
+          const free  = parseInt(parts[2]);
+          return { label, total, free };
+        })
+        .filter(d => !isNaN(d.total) && !isNaN(d.free) && d.total > 0);
+    } else {
+      const raw = await run(`df -k / | awk 'NR==2{print $2,$4}'`, { timeout: 5000 });
+      const [blocks, avail] = raw.trim().split(/\s+/).map(Number);
+      if (!isNaN(blocks) && !isNaN(avail)) {
+        return [{ label: "/", total: blocks * 1024, free: avail * 1024 }];
+      }
+    }
+  } catch {}
+  return null;
+}
+
+async function getProcessList() {
+  try {
+    if (platform === "win32") {
+      const raw = await run(
+        `powershell -NoProfile -c "Get-Process | Sort-Object WS -Descending | Select-Object -First 15 Name,CPU,WS,Id | ConvertTo-Csv -NoTypeInformation"`,
+        { timeout: 8000 }
+      );
+      return raw.split("\n").filter(Boolean).slice(1).map(line => {
+        const cols = line.replace(/\r/g, "").split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/).map(c => c.replace(/"/g, "").trim());
+        return { name: cols[0] || "?", cpu: parseFloat(cols[1]) || 0, mem: parseInt(cols[2]) || 0, pid: parseInt(cols[3]) || 0 };
+      }).filter(p => p.name && p.name !== "?" && p.mem > 0);
+    } else {
+      const raw = await run(`ps aux --sort=-%mem 2>/dev/null | head -16 | tail -15 || ps aux | head -16 | tail -15`, { timeout: 8000 });
+      return raw.split("\n").filter(Boolean).map(line => {
+        const parts = line.trim().split(/\s+/);
+        const name  = (parts.slice(10).join(" ") || parts[10] || "?").replace(/^.*\//, "").substring(0, 30);
+        return { name, cpu: parseFloat(parts[2]) || 0, mem: parseInt(parts[5]) * 1024 || 0, pid: parseInt(parts[1]) || 0 };
+      }).filter(p => p.name && p.mem > 0);
+    }
+  } catch { return []; }
+}
+
+async function sendSystemStats(ws) {
+  if (!ws || ws.readyState !== WebSocket.OPEN) return;
+  try {
+    const [cpu, disk, processes] = await Promise.all([getCpuPct(), getDiskStats(), getProcessList()]);
+    const totalMem = os.totalmem();
+    const freeMem  = os.freemem();
+    ws.send(JSON.stringify({
+      type: "system-stats",
+      stats: {
+        cpu,
+        ram: { total: totalMem, free: freeMem, used: totalMem - freeMem, pct: Math.round((totalMem - freeMem) / totalMem * 100) },
+        disk,
+        uptime: os.uptime(),
+        platform,
+        hostname,
+      },
+    }));
+    ws.send(JSON.stringify({ type: "process-list", processes }));
+  } catch (e) {
+    console.error("Stats error:", e.message);
+  }
+}
+
+// ── Terminal exec handler ──────────────────────────────────────────────────────
+async function handleTerminalExec(execId, command, ws) {
+  console.log(`  ▶ Terminal [${execId.slice(-6)}]: ${command.substring(0, 60)}`);
+  try {
+    const output = await run(command, { timeout: 28000, shell: true });
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: "exec-result", execId, output, exitCode: 0 }));
+    }
+  } catch (err) {
+    const output = (err.stderr || err.stdout || err.message || String(err)).substring(0, 8000);
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: "exec-result", execId, output, exitCode: err.code || 1, error: true }));
+    }
+  }
+}
+
 // ── WebSocket connection with auto-reconnect ───────────────────────────────────
 function buildWsUrl(base) {
   const u = new URL(base);
@@ -884,6 +1002,8 @@ function connect() {
 
   activeWs = ws;
 
+  let statsTimer = null;
+
   ws.on("open", () => {
     reconnectDelay = 2000;
     console.log("✅ Connected to StreamDeck server!\n");
@@ -893,6 +1013,9 @@ function connect() {
       hostname,
       version: "1.0.0",
     }));
+    // Start sending system stats immediately, then every 4s
+    sendSystemStats(ws);
+    statsTimer = setInterval(() => sendSystemStats(ws), 4000);
   });
 
   ws.on("message", (data) => {
@@ -903,10 +1026,13 @@ function connect() {
       handleExecute(msg.button);
     } else if (msg.type === "hello") {
       console.log(`  Agent ID: ${msg.agentId}`);
+    } else if (msg.type === "terminal-exec" && msg.execId && msg.command) {
+      handleTerminalExec(String(msg.execId), String(msg.command), ws);
     }
   });
 
   ws.on("close", () => {
+    if (statsTimer) { clearInterval(statsTimer); statsTimer = null; }
     console.log(`\n⚠️  Disconnected. Reconnecting in ${reconnectDelay / 1000}s…`);
     setTimeout(connect, reconnectDelay);
     reconnectDelay = Math.min(reconnectDelay * 2, 30000);

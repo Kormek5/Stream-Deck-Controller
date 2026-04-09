@@ -16,6 +16,7 @@ import { Stats } from "@/pages/Stats";
 import { Settings } from "@/pages/Settings";
 import { Connect } from "@/pages/Connect";
 import { ScreenshotViewer } from "@/pages/ScreenshotViewer";
+import { Monitor } from "@/pages/Monitor";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -56,6 +57,7 @@ function Router() {
       <Route path="/settings" component={Settings} />
       <Route path="/connect" component={Connect} />
       <Route path="/screenshot" component={ScreenshotViewer} />
+      <Route path="/monitor" component={Monitor} />
       <Route component={NotFound} />
     </Switch>
   );

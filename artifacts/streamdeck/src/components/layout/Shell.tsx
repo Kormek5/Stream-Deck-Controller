@@ -1,14 +1,13 @@
 import { ReactNode, useEffect } from "react";
 import { Link, useLocation } from "wouter";
-import { LayoutGrid, List, Activity, Settings, Smartphone, Camera } from "lucide-react";
+import { LayoutGrid, List, Activity, Settings, Smartphone, Camera, Monitor } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useScreenshotStream } from "@/hooks/useScreenshotStream";
 
 const BASE_NAV = [
   { path: "/", icon: LayoutGrid, label: "Deck" },
   { path: "/profiles", icon: List, label: "Profiles" },
-  { path: "/activity", icon: Activity, label: "Activity" },
-  { path: "/connect", icon: Smartphone, label: "Connect" },
+  { path: "/monitor", icon: Monitor, label: "Monitor" },
   { path: "/settings", icon: Settings, label: "Settings" },
 ];
 
