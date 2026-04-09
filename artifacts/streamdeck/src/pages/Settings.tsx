@@ -118,64 +118,51 @@ export function Settings() {
             </div>
           </div>
 
-          {/* Download section */}
+          {/* Download + steps */}
           <div className="space-y-3">
-            <p className="text-sm font-mono uppercase text-muted-foreground tracking-wide">PC Agent Setup — 3 steps</p>
+            {/* Big download button */}
+            <a href={`${serverUrl}/streamdeck-agent.zip`} download="streamdeck-agent.zip" className="block">
+              <Button className="w-full gap-2 bg-primary text-primary-foreground hover:bg-primary/90 font-mono uppercase tracking-wide py-5 text-base">
+                <Download className="w-5 h-5" />
+                Скачать агент (.zip)
+              </Button>
+            </a>
+            <p className="text-xs text-muted-foreground text-center">
+              Архив со всеми нужными файлами · Requires <span className="text-foreground">Node.js 18+</span>
+            </p>
 
-            <div className="space-y-2">
-              {/* Step 1 */}
-              <div className="flex items-start gap-3 p-3 rounded-lg border border-border bg-muted/20">
-                <span className="text-xs font-mono bg-primary/20 text-primary rounded px-1.5 py-0.5 shrink-0 mt-0.5">1</span>
-                <div className="flex-1 space-y-2">
-                  <p className="text-sm">Download the agent files:</p>
-                  <div className="flex flex-wrap gap-2">
-                    <a href={agentDownloadUrl} download="agent.js">
-                      <Button variant="outline" size="sm" className="font-mono gap-1.5 text-xs">
-                        <Download className="w-3 h-3" /> agent.js
-                      </Button>
-                    </a>
-                    <a href={agentPkgUrl} download="package.json">
-                      <Button variant="outline" size="sm" className="font-mono gap-1.5 text-xs">
-                        <Download className="w-3 h-3" /> package.json
-                      </Button>
-                    </a>
-                  </div>
-                  <p className="text-xs text-muted-foreground">Save both files in the same folder on your PC.</p>
+            {/* Steps */}
+            <div className="space-y-1.5 pt-1">
+              <p className="text-xs font-mono uppercase text-muted-foreground tracking-wide">После скачивания:</p>
+
+              <div className="rounded-lg border border-border bg-muted/10 divide-y divide-border/50">
+                <div className="flex items-center gap-3 px-4 py-2.5">
+                  <span className="text-xs font-mono bg-primary/20 text-primary rounded px-1.5 py-0.5 shrink-0">1</span>
+                  <p className="text-sm">Распакуй архив в любую папку на ПК</p>
                 </div>
-              </div>
-
-              {/* Step 2 */}
-              <div className="flex items-start gap-3 p-3 rounded-lg border border-border bg-muted/20">
-                <span className="text-xs font-mono bg-primary/20 text-primary rounded px-1.5 py-0.5 shrink-0 mt-0.5">2</span>
-                <div className="flex-1 space-y-1">
-                  <p className="text-sm">Install the dependency (one-time):</p>
-                  <code className="block text-xs bg-black/40 rounded px-3 py-2 font-mono text-green-400">npm install</code>
-                </div>
-              </div>
-
-              {/* Step 3 */}
-              <div className="flex items-start gap-3 p-3 rounded-lg border border-border bg-muted/20">
-                <span className="text-xs font-mono bg-primary/20 text-primary rounded px-1.5 py-0.5 shrink-0 mt-0.5">3</span>
-                <div className="flex-1 space-y-1">
-                  <p className="text-sm">Start the agent:</p>
-                  <div className="flex items-center gap-2">
-                    <code className="flex-1 text-xs bg-black/40 rounded px-3 py-2 font-mono text-green-400 break-all">
-                      node agent.js --server {serverUrl}
-                    </code>
-                    <Button variant="ghost" size="sm" onClick={copyCommand} className="shrink-0">
-                      {copied ? <CheckCircle2 className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
-                    </Button>
+                <div className="flex items-start gap-3 px-4 py-2.5">
+                  <span className="text-xs font-mono bg-primary/20 text-primary rounded px-1.5 py-0.5 shrink-0 mt-0.5">2</span>
+                  <div className="space-y-1 flex-1 min-w-0">
+                    <p className="text-sm">Открой терминал в этой папке и выполни:</p>
+                    <code className="block text-xs bg-black/40 rounded px-3 py-2 font-mono text-green-400">npm install</code>
                   </div>
-                  <p className="text-xs text-muted-foreground">The agent will appear as "connected" above when running.</p>
+                </div>
+                <div className="flex items-start gap-3 px-4 py-2.5">
+                  <span className="text-xs font-mono bg-primary/20 text-primary rounded px-1.5 py-0.5 shrink-0 mt-0.5">3</span>
+                  <div className="space-y-1 flex-1 min-w-0">
+                    <p className="text-sm">Запусти агента:</p>
+                    <div className="flex items-center gap-1">
+                      <code className="flex-1 text-xs bg-black/40 rounded px-3 py-2 font-mono text-green-400 break-all min-w-0">
+                        node agent.js --server {serverUrl}
+                      </code>
+                      <Button variant="ghost" size="icon" className="w-8 h-8 shrink-0" onClick={copyCommand}>
+                        {copied ? <CheckCircle2 className="w-3.5 h-3.5 text-green-500" /> : <Copy className="w-3.5 h-3.5" />}
+                      </Button>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-
-          {/* Requirements */}
-          <div className="flex items-center gap-2 text-xs text-muted-foreground font-mono">
-            <Cpu className="w-3.5 h-3.5" />
-            Requires Node.js 18+ · Works on Windows, macOS, Linux
           </div>
         </CardContent>
       </Card>
