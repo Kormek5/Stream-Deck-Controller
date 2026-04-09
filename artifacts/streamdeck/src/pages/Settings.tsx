@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Settings as SettingsIcon, Monitor, Wifi, Volume2,
-  Terminal, Download, CheckCircle2, XCircle, RefreshCw, Video,
+  Terminal, Download, CheckCircle2, XCircle, RefreshCw, Video, Copy, Check,
 } from "lucide-react";
 import { getApiUrl } from "@/lib/api";
 
@@ -43,6 +43,7 @@ export function Settings() {
   const [agentStatus, setAgentStatus] = useState<AgentStatus | null>(null);
   const [obsPassword, setObsPassword] = useState(() => localStorage.getItem("obs_ws_password") || "");
   const [obsPort, setObsPort] = useState(() => localStorage.getItem("obs_ws_port") || "4455");
+  const [urlCopied, setUrlCopied] = useState(false);
 
   function saveObsConfig() {
     localStorage.setItem("obs_ws_password", obsPassword);
@@ -66,6 +67,13 @@ export function Settings() {
   }, []);
 
   const serverUrl = window.location.origin.replace(/\/$/, "");
+
+  function copyServerUrl() {
+    navigator.clipboard.writeText(serverUrl).then(() => {
+      setUrlCopied(true);
+      setTimeout(() => setUrlCopied(false), 2000);
+    });
+  }
 
   function downloadBat() {
     // ASCII ONLY - no Cyrillic, no Unicode - guaranteed to work on any Windows
@@ -193,6 +201,21 @@ node agent.js --server ${serverUrl}
               <span className="text-foreground font-medium">Телефон / планшет:</span> просто открой эту страницу в браузере — больше ничего не нужно.<br />
               <span className="text-foreground font-medium">ПК-агент:</span> установи один раз на компьютер, где должны выполняться команды.
             </div>
+          </div>
+
+          {/* ─── Server URL box ─── */}
+          <div className="rounded-lg border border-primary/40 bg-primary/5 p-3 space-y-1">
+            <p className="text-xs font-mono uppercase text-muted-foreground tracking-wide">URL этого сервера (нужен для запуска агента)</p>
+            <div className="flex items-center gap-2">
+              <code className="flex-1 text-sm font-mono text-primary bg-black/30 rounded px-2 py-1 truncate select-all">
+                {serverUrl}
+              </code>
+              <Button size="sm" variant="ghost" onClick={copyServerUrl} className="shrink-0 gap-1">
+                {urlCopied ? <Check className="w-3.5 h-3.5 text-green-400" /> : <Copy className="w-3.5 h-3.5" />}
+                {urlCopied ? "Скопировано" : "Копировать"}
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">Вставь этот URL в <code className="font-mono">start.bat</code> если вводишь вручную.</p>
           </div>
 
           {/* ─── STEP 0: Node.js ─── */}
