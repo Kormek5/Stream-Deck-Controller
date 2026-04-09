@@ -232,12 +232,14 @@ async function executeSystemAction(command) {
       restart:      "shutdown /r /t 0",
       logoff:       "shutdown /l",
       screenshot:   `powershell -Command "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.Screen]::PrimaryScreen | ForEach-Object { $bmp = New-Object System.Drawing.Bitmap($_.Bounds.Width,$_.Bounds.Height); $g = [System.Drawing.Graphics]::FromImage($bmp); $g.CopyFromScreen(0,0,0,0,$bmp.Size); $bmp.Save([System.IO.Path]::Combine($env:USERPROFILE, 'Desktop', 'screenshot_' + (Get-Date -f 'yyyyMMdd_HHmmss') + '.png')) }"`,
+      screenrecord: `powershell -Command "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('%{F10}')" & start ms-gamebar:`,
       taskmanager:  "taskmgr",
       explorer:     "explorer",
       clipboard:    "explorer ms-settings:clipboard",
       emoji:        `powershell -Command "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('^{ESC}')"`,
       desktop:      `powershell -Command "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('^d')"`,
-      notification: `powershell -Command "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('^n')"`,
+      notification: `powershell -Command "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('+^n')"`,
+      focus:        `powershell -Command "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('%{TAB}')"`,
     },
     darwin: {
       lock:         "sysadminctl -screenLock immediate || osascript -e 'tell application \"System Events\" to keystroke \"q\" using {control down, command down}'",
@@ -246,12 +248,14 @@ async function executeSystemAction(command) {
       restart:      "osascript -e 'tell application \"System Events\" to restart'",
       logoff:       "osascript -e 'tell application \"System Events\" to log out'",
       screenshot:   "screencapture -i ~/Desktop/screenshot_$(date +%Y%m%d_%H%M%S).png",
+      screenrecord: "osascript -e 'tell application \"System Events\" to key code 95 using {command down, shift down}'",
       taskmanager:  "open -a 'Activity Monitor'",
       explorer:     "open ~",
       clipboard:    "open -a 'Finder'",
       emoji:        "open '/System/Library/Input Methods/CharacterPaletteIM.app'",
       desktop:      "osascript -e 'tell application \"Finder\" to reveal desktop'",
       notification: "open 'x-apple.systempreferences:com.apple.preference.notifications'",
+      focus:        "osascript -e 'tell application \"System Events\" to key code 48 using {command down}'",
     },
     linux: {
       lock:         "loginctl lock-session || xdg-screensaver lock",
@@ -260,12 +264,14 @@ async function executeSystemAction(command) {
       restart:      "systemctl reboot",
       logoff:       "pkill -u $USER",
       screenshot:   "scrot ~/Desktop/screenshot_$(date +%Y%m%d_%H%M%S).png",
+      screenrecord: "ffmpeg -f x11grab -r 30 -s 1920x1080 -i :0.0 ~/Desktop/recording_$(date +%Y%m%d_%H%M%S).mp4 &",
       taskmanager:  "gnome-system-monitor || xterm -e htop",
       explorer:     "xdg-open ~",
       clipboard:    "xdg-open ~",
       emoji:        "ibus-daemon -d -x || xdg-open ~",
       desktop:      "xdotool key super+d",
       notification: "xdg-open ~",
+      focus:        "xdotool key alt+Tab",
     },
   };
 
@@ -405,6 +411,26 @@ async function handleExecute(button) {
       case "system": {
         if (actionValue === "screenshot") {
           await takeAndSendScreenshot();
+        } else if (actionValue === "screenrecord" && platform === "win32") {
+          // Send Win+Alt+R (Xbox Game Bar record toggle) via keybd_event
+          await runPsScript(
+            `Add-Type -TypeDefinition @'\n` +
+            `using System; using System.Runtime.InteropServices;\n` +
+            `public class KB {\n` +
+            `  [DllImport("user32.dll")] public static extern void keybd_event(byte bVk, byte bScan, int dwFlags, int dwExtraInfo);\n` +
+            `  public const int KEYEVENTF_KEYUP = 2; public const int KEYEVENTF_EXTENDEDKEY = 1;\n` +
+            `}\n` +
+            `'@ -Language CSharp\n` +
+            `# Win+Alt+R = Xbox Game Bar Start/Stop Recording\n` +
+            `[KB]::keybd_event(0x5B, 0, 1, 0)  # LWin down\n` +
+            `[KB]::keybd_event(0x12, 0, 0, 0)  # Alt down\n` +
+            `[KB]::keybd_event(0x52, 0, 0, 0)  # R down\n` +
+            `Start-Sleep -Milliseconds 50\n` +
+            `[KB]::keybd_event(0x52, 0, 2, 0)  # R up\n` +
+            `[KB]::keybd_event(0x12, 0, 2, 0)  # Alt up\n` +
+            `[KB]::keybd_event(0x5B, 0, 3, 0)  # LWin up`
+          );
+          console.log("  → Sent Win+Alt+R (Xbox Game Bar record toggle)");
         } else {
           await executeSystemAction(actionValue);
         }
@@ -582,12 +608,30 @@ async function handleExecute(button) {
             imageFormat: "png",
             imageFilePath: "",
           }),
+          "open":               () => { openUrl("obs://"); return Promise.resolve(); },
         };
         const handler = obsWsMap[cmd];
         if (handler) {
-          await handler();
+          try {
+            await handler();
+            console.log(`  → OBS: ${cmd} OK`);
+          } catch (obsErr) {
+            const msg = obsErr.message || String(obsErr);
+            // Determine root cause and give actionable advice
+            if (msg.includes("ECONNREFUSED") || msg.includes("not available") || msg.includes("closed")) {
+              console.error(`  ⚠️  OBS WebSocket not reachable on port ${obsPort}`);
+              console.error(`      → Make sure OBS is running and WebSocket server is enabled:`);
+              console.error(`         OBS → Tools → WebSocket Server Settings → Enable WebSocket server`);
+              console.error(`      → Check port (default 4455) and password in Settings → Connect tab`);
+            } else if (msg.includes("Authentication")) {
+              console.error(`  ⚠️  OBS WebSocket: Wrong password`);
+              console.error(`      → Update the password in Settings → Connect tab and re-download the agent`);
+            } else {
+              console.error(`  ⚠️  OBS error: ${msg}`);
+            }
+          }
         } else {
-          console.log(`  → OBS: unknown command "${cmd}"`);
+          console.log(`  → OBS: unknown command "${cmd}" — valid: start-recording, stop-recording, toggle-recording, start-streaming, stop-streaming, switch-scene, toggle-mute-mic, screenshot`);
         }
         break;
       }
