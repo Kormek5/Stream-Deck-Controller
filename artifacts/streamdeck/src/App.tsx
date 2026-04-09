@@ -17,6 +17,7 @@ import { Settings } from "@/pages/Settings";
 import { Connect } from "@/pages/Connect";
 import { ScreenshotViewer } from "@/pages/ScreenshotViewer";
 import { Monitor } from "@/pages/Monitor";
+import { LiveViewer } from "@/pages/LiveViewer";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -57,6 +58,7 @@ function Router() {
       <Route path="/settings" component={Settings} />
       <Route path="/connect" component={Connect} />
       <Route path="/screenshot" component={ScreenshotViewer} />
+      <Route path="/live" component={LiveViewer} />
       <Route path="/monitor" component={Monitor} />
       <Route component={NotFound} />
     </Switch>

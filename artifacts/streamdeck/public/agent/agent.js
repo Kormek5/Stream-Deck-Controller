@@ -838,6 +838,126 @@ async function handleExecute(button) {
   }
 }
 
+// ── Live Screen Stream ─────────────────────────────────────────────────────────
+let streamTimer   = null;
+let frameCapturing = false;  // prevent overlapping captures
+let streamWidth    = 1920;
+let streamHeight   = 1080;
+
+async function captureFrame(ws) {
+  if (!ws || ws.readyState !== WebSocket.OPEN || frameCapturing) return;
+  frameCapturing = true;
+  const tmpFile = path.join(os.tmpdir(), "sd_live.jpg");
+  try {
+    if (platform === "win32") {
+      // GDI+ screenshot → JPEG 40%  (one PS call, fast after JIT warmup)
+      const ps = [
+        "Add-Type -AssemblyName System.Windows.Forms,System.Drawing;",
+        "$s=[System.Windows.Forms.Screen]::PrimaryScreen.Bounds;",
+        "$b=New-Object System.Drawing.Bitmap($s.Width,$s.Height);",
+        "$g=[System.Drawing.Graphics]::FromImage($b);$g.CopyFromScreen(0,0,0,0,$b.Size);$g.Dispose();",
+        "$c=[System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders()|?{$_.MimeType-eq'image/jpeg'};",
+        "$p=New-Object System.Drawing.Imaging.EncoderParameters(1);",
+        "$p.Param[0]=New-Object System.Drawing.Imaging.EncoderParameter([System.Drawing.Imaging.Encoder]::Quality,40L);",
+        `$b.Save('${tmpFile.replace(/\\/g, "\\\\")}', $c, $p);`,
+        "Write-Output ($s.Width.ToString()+' '+$s.Height.ToString());",
+        "$b.Dispose()"
+      ].join("");
+      const info = await run(`powershell -NoProfile -NonInteractive -Command "${ps}"`, { shell: true, timeout: 8000 });
+      const parts = info.trim().split(/\s+/);
+      if (parts.length >= 2) { streamWidth = parseInt(parts[0]) || 1920; streamHeight = parseInt(parts[1]) || 1080; }
+    } else if (platform === "darwin") {
+      await run(`screencapture -x -t jpeg '${tmpFile}'`);
+      try {
+        const info = await run(`sips -g pixelWidth -g pixelHeight '${tmpFile}'`);
+        const matches = info.match(/pixelWidth:\s*(\d+)[\s\S]*pixelHeight:\s*(\d+)/);
+        if (matches) { streamWidth = parseInt(matches[1]); streamHeight = parseInt(matches[2]); }
+      } catch {}
+    } else {
+      await run(`scrot -q 40 '${tmpFile}' 2>/dev/null || import -window root -quality 40 '${tmpFile}'`);
+    }
+    const buf = fs.readFileSync(tmpFile);
+    ws.send(JSON.stringify({
+      type: "frame",
+      data: "data:image/jpeg;base64," + buf.toString("base64"),
+      width: streamWidth,
+      height: streamHeight,
+      timestamp: Date.now(),
+    }));
+  } catch (e) {
+    // Suppress noisy frame errors during streaming
+  } finally {
+    try { fs.unlinkSync(tmpFile); } catch {}
+    frameCapturing = false;
+  }
+}
+
+// ── Mouse & Keyboard Control ───────────────────────────────────────────────────
+const MOUSE_DLL = `
+Add-Type -TypeDefinition @'
+using System;using System.Runtime.InteropServices;
+public class SDMouse {
+  [DllImport("user32.dll")] public static extern bool SetCursorPos(int x,int y);
+  [DllImport("user32.dll")] public static extern void mouse_event(uint f,int x,int y,int d,int e);
+  public const uint LDOWN=0x02,LUP=0x04,RDOWN=0x08,RUP=0x10,MDWN=0x20,MUP=0x40,WHEEL=0x0800;
+}
+'@ -ErrorAction SilentlyContinue;`;
+
+async function handleMouseControl(msg) {
+  const x = Math.round(msg.x ?? 0);
+  const y = Math.round(msg.y ?? 0);
+  try {
+    if (platform === "win32") {
+      if (msg.type === "mouse-move") {
+        await run(
+          `powershell -NoProfile -NonInteractive -Command "Add-Type -AssemblyName System.Windows.Forms;[System.Windows.Forms.Cursor]::Position=New-Object System.Drawing.Point(${x},${y})"`,
+          { shell: true, timeout: 3000 }
+        );
+      } else if (msg.type === "mouse-click") {
+        const btn   = msg.button === "right" ? "RDOWN,SDMOUSE.RUP" : "SDMOUSE.LDOWN,SDMOUSE.LUP";
+        const dbl   = msg.button === "double";
+        const flags = msg.button === "right"
+          ? "SDMouse.RDOWN; [System.Threading.Thread]::Sleep(40); [SDMouse]::mouse_event([SDMouse]::RUP,0,0,0,0)"
+          : dbl
+            ? "[SDMouse]::mouse_event([SDMouse]::LDOWN,0,0,0,0); [System.Threading.Thread]::Sleep(30); [SDMouse]::mouse_event([SDMouse]::LUP,0,0,0,0); [System.Threading.Thread]::Sleep(80); [SDMouse]::mouse_event([SDMouse]::LDOWN,0,0,0,0); [System.Threading.Thread]::Sleep(30); [SDMouse]::mouse_event([SDMouse]::LUP,0,0,0,0)"
+            : "[SDMouse]::mouse_event([SDMouse]::LDOWN,0,0,0,0); [System.Threading.Thread]::Sleep(40); [SDMouse]::mouse_event([SDMouse]::LUP,0,0,0,0)";
+        await runPsScript(
+          `${MOUSE_DLL} [SDMouse]::SetCursorPos(${x},${y}); [System.Threading.Thread]::Sleep(30); ${flags}`
+        );
+      } else if (msg.type === "mouse-scroll") {
+        const delta = Math.round((msg.delta ?? 3) * 120);
+        await runPsScript(`${MOUSE_DLL} [SDMouse]::mouse_event([SDMouse]::WHEEL,0,0,${delta},0)`);
+      }
+    } else if (platform === "darwin") {
+      if (msg.type === "mouse-move") {
+        await run(`osascript -e 'tell application "System Events" to set the position of the mouse cursor to {${x}, ${y}}'`, { timeout: 3000 });
+      } else if (msg.type === "mouse-click") {
+        const btn = msg.button === "right" ? "right" : msg.button === "double" ? "double" : "left";
+        const cliBtn = btn === "right" ? "rc" : btn === "double" ? "dc" : "c";
+        await run(`cliclick ${cliBtn}:${x},${y} 2>/dev/null || osascript -e 'tell application "System Events" to click at {${x}, ${y}}'`, { timeout: 3000 });
+      } else if (msg.type === "mouse-scroll") {
+        const d = Math.round(msg.delta ?? 3);
+        await run(`osascript -e 'tell application "System Events" to scroll {0, ${d}} at {${x}, ${y}}'`, { timeout: 3000 });
+      }
+    } else {
+      // Linux — xdotool
+      if (msg.type === "mouse-move") {
+        await run(`xdotool mousemove ${x} ${y}`, { timeout: 3000 });
+      } else if (msg.type === "mouse-click") {
+        const btn = msg.button === "right" ? "3" : "1";
+        const dbl = msg.button === "double" ? "--repeat 2 --delay 80" : "";
+        await run(`xdotool mousemove ${x} ${y} click ${dbl} ${btn}`, { timeout: 3000 });
+      } else if (msg.type === "mouse-scroll") {
+        const btn = (msg.delta ?? 1) > 0 ? "4" : "5";
+        const cnt = Math.abs(Math.round(msg.delta ?? 3));
+        await run(`xdotool click --repeat ${cnt} ${btn}`, { timeout: 3000 });
+      }
+    }
+  } catch (e) {
+    console.error(`  Mouse error (${msg.type}): ${e.message}`);
+  }
+}
+
 // ── System Stats & Monitor ─────────────────────────────────────────────────────
 
 // CPU% — two-sample approach (compares cpu times over ~600ms interval)
@@ -1028,11 +1148,24 @@ function connect() {
       console.log(`  Agent ID: ${msg.agentId}`);
     } else if (msg.type === "terminal-exec" && msg.execId && msg.command) {
       handleTerminalExec(String(msg.execId), String(msg.command), ws);
+    } else if (msg.type === "stream-start") {
+      if (!streamTimer) {
+        console.log("  📹 Live stream started");
+        captureFrame(ws);
+        streamTimer = setInterval(() => captureFrame(ws), 450); // ~2fps
+      }
+    } else if (msg.type === "stream-stop") {
+      if (streamTimer) { clearInterval(streamTimer); streamTimer = null; }
+      frameCapturing = false;
+      console.log("  📹 Live stream stopped");
+    } else if (["mouse-move", "mouse-click", "mouse-scroll"].includes(msg.type)) {
+      handleMouseControl(msg);
     }
   });
 
   ws.on("close", () => {
-    if (statsTimer) { clearInterval(statsTimer); statsTimer = null; }
+    if (statsTimer)  { clearInterval(statsTimer);  statsTimer  = null; }
+    if (streamTimer) { clearInterval(streamTimer); streamTimer = null; frameCapturing = false; }
     console.log(`\n⚠️  Disconnected. Reconnecting in ${reconnectDelay / 1000}s…`);
     setTimeout(connect, reconnectDelay);
     reconnectDelay = Math.min(reconnectDelay * 2, 30000);

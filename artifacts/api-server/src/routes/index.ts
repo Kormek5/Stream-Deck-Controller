@@ -8,7 +8,9 @@ import {
   getLatestScreenshot, subscribeToScreenshots,
   getLatestSystemStats, subscribeToSystemStats,
   getLatestProcessList, subscribeToProcessList,
+  getLatestFrame, subscribeToFrames,
   executeTerminalCommand,
+  sendToAllAgents,
 } from "../lib/agent-bridge";
 
 const router: IRouter = Router();
@@ -89,6 +91,45 @@ router.get("/monitor/process/stream", (req: Request, res: Response) => {
 
   const unsubscribe = subscribeToProcessList(res);
   req.on("close", () => { clearInterval(heartbeat); unsubscribe(); });
+});
+
+// ── Monitor: live frame stream ────────────────────────────────────────────────
+router.get("/monitor/frame/stream", (req: Request, res: Response) => {
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.flushHeaders();
+
+  const heartbeat = setInterval(() => {
+    try { res.write(": heartbeat\n\n"); } catch { clearInterval(heartbeat); }
+  }, 15000);
+
+  const unsubscribe = subscribeToFrames(res);
+  req.on("close", () => { clearInterval(heartbeat); unsubscribe(); });
+});
+
+// ── Monitor: stream control ───────────────────────────────────────────────────
+router.post("/monitor/stream/start", (_req: Request, res: Response) => {
+  const sent = sendToAllAgents({ type: "stream-start" });
+  res.json({ ok: true, sent });
+});
+
+router.post("/monitor/stream/stop", (_req: Request, res: Response) => {
+  const sent = sendToAllAgents({ type: "stream-stop" });
+  res.json({ ok: true, sent });
+});
+
+// ── Monitor: mouse control ────────────────────────────────────────────────────
+router.post("/monitor/mouse", (req: Request, res: Response) => {
+  const { type, x, y, button, delta } = req.body as {
+    type: string; x?: number; y?: number; button?: string; delta?: number;
+  };
+  if (!["mouse-move", "mouse-click", "mouse-scroll"].includes(type)) {
+    res.status(400).json({ error: "invalid type" });
+    return;
+  }
+  sendToAllAgents({ type, x, y, button, delta });
+  res.json({ ok: true });
 });
 
 // ── Monitor: remote terminal ──────────────────────────────────────────────────

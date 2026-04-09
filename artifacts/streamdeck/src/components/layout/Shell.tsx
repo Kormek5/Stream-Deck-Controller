@@ -1,28 +1,22 @@
 import { ReactNode, useEffect } from "react";
 import { Link, useLocation } from "wouter";
-import { LayoutGrid, List, Activity, Settings, Smartphone, Camera, Monitor } from "lucide-react";
+import { LayoutGrid, List, Settings, Monitor, Tv2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useScreenshotStream } from "@/hooks/useScreenshotStream";
 
-const BASE_NAV = [
-  { path: "/", icon: LayoutGrid, label: "Deck" },
-  { path: "/profiles", icon: List, label: "Profiles" },
-  { path: "/monitor", icon: Monitor, label: "Monitor" },
-  { path: "/settings", icon: Settings, label: "Settings" },
+const navItems = [
+  { path: "/",         icon: LayoutGrid, label: "Deck"    },
+  { path: "/profiles", icon: List,       label: "Profiles" },
+  { path: "/monitor",  icon: Monitor,    label: "Monitor"  },
+  { path: "/settings", icon: Settings,   label: "Settings" },
+  { path: "/live",     icon: Tv2,        label: "Remote"   },
 ];
 
 export function Shell({ children }: { children: ReactNode }) {
   const [location] = useLocation();
-  const latestScreenshot = useScreenshotStream();
 
   useEffect(() => {
     document.documentElement.classList.add("dark");
   }, []);
-
-  const navItems = [
-    ...BASE_NAV,
-    { path: "/screenshot", icon: Camera, label: "Screen", badge: !!latestScreenshot },
-  ];
 
   return (
     <div className="flex h-[100dvh] w-full flex-col bg-background text-foreground overflow-hidden">

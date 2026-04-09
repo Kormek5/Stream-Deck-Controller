@@ -31,6 +31,13 @@ export interface ProcessInfo {
   pid?: number;
 }
 
+export interface LiveFrame {
+  data: string;       // data:image/jpeg;base64,...
+  width: number;
+  height: number;
+  timestamp: number;
+}
+
 interface ExecResult {
   output: string;
   exitCode: number;
@@ -43,10 +50,12 @@ let nextId = 1;
 let latestScreenshot: Screenshot | null = null;
 let latestSystemStats: SystemStats | null = null;
 let latestProcessList: ProcessInfo[] | null = null;
+let latestFrame: LiveFrame | null = null;
 
 const sseScreenshotClients = new Set<ServerResponse>();
 const sseStatsClients     = new Set<ServerResponse>();
 const sseProcessClients   = new Set<ServerResponse>();
+const sseFrameClients     = new Set<ServerResponse>();
 
 const pendingExecs = new Map<string, { resolve: (v: ExecResult) => void; timer: NodeJS.Timeout }>();
 
@@ -56,6 +65,7 @@ export function getAgentCount() { return agents.size; }
 export function getLatestScreenshot() { return latestScreenshot; }
 export function getLatestSystemStats() { return latestSystemStats; }
 export function getLatestProcessList() { return latestProcessList; }
+export function getLatestFrame() { return latestFrame; }
 
 // ── SSE subscriptions ─────────────────────────────────────────────────────────
 export function subscribeToScreenshots(res: ServerResponse) {
@@ -69,6 +79,10 @@ export function subscribeToSystemStats(res: ServerResponse) {
 export function subscribeToProcessList(res: ServerResponse) {
   sseProcessClients.add(res);
   return () => sseProcessClients.delete(res);
+}
+export function subscribeToFrames(res: ServerResponse) {
+  sseFrameClients.add(res);
+  return () => sseFrameClients.delete(res);
 }
 
 function pushSse(clients: Set<ServerResponse>, data: unknown) {
@@ -138,6 +152,13 @@ export function attachWebSocket(server: Server) {
           logger.info({ id }, "Screenshot received from agent");
           pushSse(sseScreenshotClients, shot);
 
+        } else if (msg.type === "frame" && typeof msg.data === "string") {
+          latestFrame = msg as unknown as LiveFrame;
+          // For live stream, push raw to clients (avoid JSON.stringify of huge base64 string)
+          const payload = `data: ${raw.toString()}\n\n`;
+          for (const res of sseFrameClients) {
+            try { res.write(payload); } catch { sseFrameClients.delete(res); }
+          }
         } else if (msg.type === "system-stats" && msg.stats) {
           latestSystemStats = msg.stats as SystemStats;
           pushSse(sseStatsClients, latestSystemStats);
