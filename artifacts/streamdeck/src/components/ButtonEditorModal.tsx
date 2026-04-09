@@ -23,7 +23,9 @@ import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -46,7 +48,7 @@ const formSchema = z.object({
   label: z.string().min(1, "Label is required").max(20),
   icon: z.string().min(1, "Icon is required"),
   color: z.string().min(1, "Color is required"),
-  actionType: z.enum(["url", "hotkey", "script", "vpn", "steam", "app", "media", "obs", "github", "twitch"]),
+  actionType: z.enum(["url", "hotkey", "script", "vpn", "steam", "app", "media", "obs", "github", "twitch", "zoom", "discord", "spotify", "slack", "teams", "telegram", "notion", "browser", "system"]),
   actionValue: z.string(),
   position: z.number().int().min(0).max(29),
 });
@@ -402,17 +404,29 @@ export function ButtonEditorModal({ open, onOpenChange, profileId, button }: Pro
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {ACTION_TYPES.map((type) => {
-                        const IconComponent = type.icon;
-                        return (
-                          <SelectItem key={type.value} value={type.value}>
-                            <div className="flex items-center gap-2">
-                              <IconComponent className="w-4 h-4" />
-                              {type.label}
-                            </div>
-                          </SelectItem>
-                        );
-                      })}
+                      {Object.entries(
+                        ACTION_TYPES.reduce<Record<string, typeof ACTION_TYPES>>((acc, t) => {
+                          (acc[t.group] ??= []).push(t);
+                          return acc;
+                        }, {})
+                      ).map(([group, types]) => (
+                        <SelectGroup key={group}>
+                          <SelectLabel className="text-xs text-muted-foreground uppercase tracking-wider py-1">
+                            {group}
+                          </SelectLabel>
+                          {types.map((type) => {
+                            const IconComponent = type.icon;
+                            return (
+                              <SelectItem key={type.value} value={type.value}>
+                                <div className="flex items-center gap-2">
+                                  <IconComponent className="w-4 h-4" />
+                                  {type.label}
+                                </div>
+                              </SelectItem>
+                            );
+                          })}
+                        </SelectGroup>
+                      ))}
                     </SelectContent>
                   </Select>
                   <FormMessage />

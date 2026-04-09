@@ -37,6 +37,15 @@ export const ButtonActionType = {
   obs: "obs",
   github: "github",
   twitch: "twitch",
+  zoom: "zoom",
+  discord: "discord",
+  spotify: "spotify",
+  slack: "slack",
+  teams: "teams",
+  telegram: "telegram",
+  notion: "notion",
+  browser: "browser",
+  system: "system",
 } as const;
 
 export interface Button {
@@ -66,6 +75,15 @@ export const CreateButtonBodyActionType = {
   obs: "obs",
   github: "github",
   twitch: "twitch",
+  zoom: "zoom",
+  discord: "discord",
+  spotify: "spotify",
+  slack: "slack",
+  teams: "teams",
+  telegram: "telegram",
+  notion: "notion",
+  browser: "browser",
+  system: "system",
 } as const;
 
 export interface CreateButtonBody {

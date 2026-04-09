@@ -163,6 +163,160 @@ router.post("/buttons/:id/execute", async (req, res) => {
       message = `Twitch: ${twLabels[tw.command ?? ""] ?? tw.command ?? "action triggered"}${channelSuffix}`;
       break;
     }
+    case "zoom": {
+      const z = parseComposite(button.actionValue);
+      const zLabels: Record<string, string> = {
+        mute: "Mute/Unmute Microphone",
+        video: "Start/Stop Video",
+        screenshare: "Start/Stop Screen Share",
+        hand: "Raise/Lower Hand",
+        record: "Start/Stop Recording",
+        leave: "Leave Meeting",
+        end: "End Meeting",
+        chat: "Open Chat",
+        participants: "Show Participants",
+        reactions: "Send Reaction",
+        newmeeting: "Start New Meeting",
+        join: `Join Meeting${z.meetingId ? `: ${z.meetingId}` : ""}`,
+        schedule: "Schedule Meeting",
+      };
+      message = `Zoom: ${zLabels[z.command ?? ""] ?? z.command ?? "action triggered"}`;
+      break;
+    }
+    case "teams": {
+      const t = parseComposite(button.actionValue);
+      const tLabels: Record<string, string> = {
+        mute: "Mute/Unmute Microphone",
+        video: "Start/Stop Camera",
+        screenshare: "Share Screen",
+        hand: "Raise Hand",
+        leave: "Leave Call",
+        chat: "Open Chat",
+        calendar: "Open Calendar",
+        "teams-tab": "Open Teams Tab",
+        newcall: `Start New Call${t.contact ? ` (${t.contact})` : ""}`,
+        blur: "Toggle Background Blur",
+        reactions: "Send Reaction",
+      };
+      message = `Teams: ${tLabels[t.command ?? ""] ?? t.command ?? "action triggered"}`;
+      break;
+    }
+    case "discord": {
+      const d = parseComposite(button.actionValue);
+      const dLabels: Record<string, string> = {
+        mute: "Mute/Unmute Microphone",
+        deafen: "Deafen/Undeafen",
+        video: "Toggle Video",
+        screenshare: "Start/Stop Screen Share",
+        disconnect: "Disconnect from Voice",
+        "push-to-talk": "Push to Talk",
+        "open-channel": `Open ${d.target ? `#${d.target.replace(/^#/, "")}` : "Channel"}`,
+        "open-dm": `DM ${d.target || ""}`.trim(),
+        "go-live": "Go Live / Stream",
+        "notifications-off": "Suppress Notifications",
+        invite: "Create Invite",
+      };
+      message = `Discord: ${dLabels[d.command ?? ""] ?? d.command ?? "action triggered"}`;
+      break;
+    }
+    case "slack": {
+      const s = parseComposite(button.actionValue);
+      const sLabels: Record<string, string> = {
+        open: "Open Slack",
+        "new-message": "New Message",
+        "open-channel": `Open ${s.target || "Channel"}`,
+        "set-status": `Set Status: ${s.target || ""}`,
+        dnd: "Toggle Do Not Disturb",
+        "mute-notifs": "Mute Notifications",
+        "open-huddle": "Start Huddle",
+        "open-dm": `DM ${s.target || ""}`.trim(),
+        search: "Open Search",
+        "open-threads": "Open Threads",
+        "open-mentions": "Open Mentions & Reactions",
+      };
+      message = `Slack: ${sLabels[s.command ?? ""] ?? s.command ?? "action triggered"}`;
+      break;
+    }
+    case "spotify": {
+      const spLabels: Record<string, string> = {
+        playpause: "Play/Pause",
+        next: "Next Track",
+        prev: "Previous Track",
+        volumeup: "Volume Up",
+        volumedown: "Volume Down",
+        mute: "Mute/Unmute",
+        shuffle: "Toggle Shuffle",
+        repeat: "Toggle Repeat",
+        like: "Save Current Song",
+        open: "Open Spotify",
+        "open-liked": "Open Liked Songs",
+        "open-queue": "Open Queue",
+      };
+      message = `Spotify: ${spLabels[button.actionValue] ?? button.actionValue}`;
+      break;
+    }
+    case "telegram": {
+      const tg = parseComposite(button.actionValue);
+      const tgLabels: Record<string, string> = {
+        open: "Open Telegram",
+        "open-chat": `Open chat${tg.target ? `: ${tg.target}` : ""}`,
+        "new-message": `New message${tg.target ? ` to ${tg.target}` : ""}`,
+        saved: "Open Saved Messages",
+        calls: "Open Calls",
+      };
+      message = `Telegram: ${tgLabels[tg.command ?? ""] ?? tg.command ?? "action triggered"}`;
+      break;
+    }
+    case "notion": {
+      const no = parseComposite(button.actionValue);
+      const noLabels: Record<string, string> = {
+        open: "Open Notion",
+        "new-page": "Create New Page",
+        "open-page": `Open Page${no.pageUrl ? `: ${no.pageUrl}` : ""}`,
+        search: "Quick Search",
+        inbox: "Open Inbox",
+        templates: "Open Templates",
+      };
+      message = `Notion: ${noLabels[no.command ?? ""] ?? no.command ?? "action triggered"}`;
+      break;
+    }
+    case "browser": {
+      const brLabels: Record<string, string> = {
+        newtab: "New Tab",
+        newwindow: "New Window",
+        incognito: "New Incognito Window",
+        bookmark: "Bookmark Current Page",
+        history: "Open History",
+        downloads: "Open Downloads",
+        devtools: "Toggle DevTools",
+        hardrefresh: "Hard Refresh",
+        fullscreen: "Toggle Fullscreen",
+        zoomin: "Zoom In",
+        zoomout: "Zoom Out",
+        zoomreset: "Reset Zoom",
+      };
+      message = `Browser: ${brLabels[button.actionValue] ?? button.actionValue}`;
+      break;
+    }
+    case "system": {
+      const sysLabels: Record<string, string> = {
+        lock: "Lock Screen",
+        sleep: "Sleep",
+        shutdown: "Shutdown",
+        restart: "Restart",
+        logoff: "Log Off",
+        screenshot: "Screenshot",
+        screenrecord: "Screen Recording",
+        taskmanager: "Task Manager",
+        explorer: "File Explorer",
+        clipboard: "Clipboard History",
+        emoji: "Emoji Picker",
+        desktop: "Show Desktop",
+        notification: "Notification Center",
+      };
+      message = `System: ${sysLabels[button.actionValue] ?? button.actionValue}`;
+      break;
+    }
     default:
       message = `Action executed: ${button.label}`;
   }
