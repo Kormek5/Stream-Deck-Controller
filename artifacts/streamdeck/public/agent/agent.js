@@ -792,6 +792,37 @@ async function handleExecute(button) {
         break;
       }
 
+      case "wol": {
+        // Wake-on-LAN: send UDP magic packet to broadcast so the target PC powers on
+        // actionValue = MAC address, e.g. "AA:BB:CC:DD:EE:FF" or "AA-BB-CC-DD-EE-FF"
+        const macRaw = actionValue.trim().replace(/[:\-]/g, "");
+        if (!/^[0-9a-fA-F]{12}$/.test(macRaw)) {
+          throw new Error(`Invalid MAC address "${actionValue}" — expected format: AA:BB:CC:DD:EE:FF`);
+        }
+        const macBuf = Buffer.from(macRaw, "hex");
+        const magic  = Buffer.alloc(102);
+        magic.fill(0xff, 0, 6);                          // 6 bytes of 0xFF
+        for (let i = 0; i < 16; i++) macBuf.copy(magic, 6 + i * 6); // MAC repeated 16x
+        const dgram = require("dgram");
+        await new Promise((resolve, reject) => {
+          const sock = dgram.createSocket({ type: "udp4", reuseAddr: true });
+          sock.once("error", reject);
+          sock.bind(() => {
+            sock.setBroadcast(true);
+            // Send to both directed broadcast variants and global broadcast
+            const targets = ["255.255.255.255", "192.168.1.255", "192.168.0.255"];
+            let sent = 0;
+            targets.forEach(addr => {
+              sock.send(magic, 9, addr, () => {
+                if (++sent === targets.length) { sock.close(); resolve(); }
+              });
+            });
+          });
+        });
+        console.log(`  → WOL magic packet sent to ${actionValue} — PC should wake within 10–30 s`);
+        break;
+      }
+
       default: {
         // Try to get a URL for it and open in browser
         const url = getActionUrl(actionType, actionValue);

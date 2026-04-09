@@ -144,6 +144,38 @@ node agent.js --server ${serverUrl}
     downloadBlob(content, "start-agent.sh", "application/x-sh");
   }
 
+  function downloadVbs() {
+    const obsArgs = obsPassword
+      ? ` --obs-password ${obsPassword}${obsPort !== "4455" ? ` --obs-port ${obsPort}` : ""}`
+      : (obsPort !== "4455" ? ` --obs-port ${obsPort}` : "");
+    // VBScript: запускает node agent.js скрытно (нет окна) через wscript.exe
+    const content = `' StreamDeck Agent — Silent Background Mode
+' Runs the agent with NO visible terminal window.
+' To stop: open Task Manager -> find node.exe -> End Task
+' Or run: taskkill /F /IM node.exe  (from another terminal)
+
+Option Explicit
+Dim WshShell, fso, agentDir, cmd
+
+Set WshShell = CreateObject("WScript.Shell")
+Set fso      = CreateObject("Scripting.FileSystemObject")
+
+agentDir = fso.GetParentFolderName(WScript.ScriptFullName)
+WshShell.CurrentDirectory = agentDir
+
+cmd = "cmd /c node agent.js --server ${serverUrl}${obsArgs}"
+
+' Window style 0 = hidden, False = don't wait (fire and forget)
+WshShell.Run cmd, 0, False
+
+WScript.Sleep 1500
+WshShell.Popup "StreamDeck Agent started in background." & Chr(13) & Chr(10) & _
+               "To stop: Task Manager -> node.exe -> End Task", _
+               4, "StreamDeck Agent", 64
+`;
+    downloadBlob(content, "start-agent-silent.vbs", "text/vbscript");
+  }
+
   return (
     <div className="p-6 max-w-2xl mx-auto space-y-6">
       <div>
@@ -282,6 +314,29 @@ node agent.js --server ${serverUrl}
             </p>
             <p className="text-xs text-muted-foreground mt-2">
               Не закрывай появившееся окно — агент должен работать фоном пока ты используешь StreamDeck.
+            </p>
+          </div>
+
+          {/* ─── Background / Silent start (Windows) ─── */}
+          <div className="space-y-2">
+            <p className="text-xs font-mono uppercase text-muted-foreground tracking-wide">🔕 Фоновый запуск (без окна) — Windows</p>
+            <Button
+              variant="outline"
+              className="w-full gap-2 font-mono border-border py-4 text-sm flex-col h-auto border-dashed"
+              onClick={downloadVbs}
+            >
+              <div className="flex items-center gap-2">
+                <Download className="w-4 h-4" />
+                <span>🪟 Скачать start-agent-silent.vbs</span>
+              </div>
+              <span className="text-xs text-muted-foreground font-normal normal-case">
+                Агент запустится без терминального окна — можно закрыть explorer
+              </span>
+            </Button>
+            <p className="text-xs text-muted-foreground">
+              Положи <code className="font-mono">.vbs</code> файл в ту же папку что и агент.
+              Двойной клик — агент запускается скрытно и уведомление исчезнет через 4 секунды.
+              Чтобы остановить: <code className="font-mono">Task Manager → node.exe → End Task</code>.
             </p>
           </div>
 

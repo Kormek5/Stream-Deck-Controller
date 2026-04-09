@@ -8,7 +8,7 @@ import {
   Send, FileText, Chrome, Cpu, Lock, Moon, RefreshCw, Folder,
   Clipboard, Volume1, Search, BellOff, Bell, PhoneCall, PhoneOff,
   Hand, ScreenShare, PlusCircle, ExternalLink, BookOpen, Edit,
-  Sparkles, Code2, Mail, FolderOpen, Twitter, Layers, Type
+  Sparkles, Code2, Mail, FolderOpen, Twitter, Layers, Type, Wifi
 } from "lucide-react";
 
 export const ACTION_TYPES = [
@@ -52,6 +52,7 @@ export const ACTION_TYPES = [
   { value: "vpn" as const,     label: "Toggle VPN",           icon: Shield,       group: "Other" },
   { value: "twitch" as const,  label: "Twitch",               icon: Cast,         group: "Other" },
   { value: "airdrop" as const, label: "AirDrop",              icon: Send,         group: "Other" },
+  { value: "wol" as const,     label: "Wake-on-LAN",          icon: Wifi,         group: "Other" },
 ];
 
 export type ActionType = typeof ACTION_TYPES[number]["value"];
@@ -640,6 +641,12 @@ export const ACTION_VALUE_CONFIG: Record<string, {
       { value: "open", label: "Open AirDrop (Mac Finder)" },
       { value: "share", label: "Share Current File" },
     ],
+  },
+  wol: {
+    label: "MAC-адрес целевого ПК",
+    placeholder: "AA:BB:CC:DD:EE:FF",
+    hint: "MAC-адрес сетевой карты компьютера, который нужно включить. На Windows: ipconfig /all → Physical Address. Агент на ДРУГОМ включённом ПК в той же сети отправит магический пакет.",
+    type: "text",
   },
 };
 

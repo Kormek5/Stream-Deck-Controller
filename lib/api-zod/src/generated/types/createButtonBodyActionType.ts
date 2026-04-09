@@ -42,4 +42,5 @@ export const CreateButtonBodyActionType = {
   clipboard: "clipboard",
   type: "type",
   notification: "notification",
+  wol: "wol",
 } as const;

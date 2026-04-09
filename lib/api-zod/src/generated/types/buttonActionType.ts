@@ -42,4 +42,5 @@ export const ButtonActionType = {
   clipboard: "clipboard",
   type: "type",
   notification: "notification",
+  wol: "wol",
 } as const;

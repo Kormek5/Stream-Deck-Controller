@@ -76,6 +76,7 @@ export const ButtonActionType = {
   clipboard: "clipboard",
   type: "type",
   notification: "notification",
+  wol: "wol",
 } as const;
 
 export interface Button {
@@ -128,6 +129,7 @@ export const CreateButtonBodyActionType = {
   clipboard: "clipboard",
   type: "type",
   notification: "notification",
+  wol: "wol",
 } as const;
 
 export interface CreateButtonBody {
