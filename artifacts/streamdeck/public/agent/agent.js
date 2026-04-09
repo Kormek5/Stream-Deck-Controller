@@ -426,25 +426,28 @@ async function handleExecute(button) {
         // actionValue may be a plain username string or JSON {"command":"switch","username":"..."}
         const v = parseComposite(actionValue);
         const steamUser = v.username || (typeof actionValue === "string" && !actionValue.startsWith("{") ? actionValue : "");
-        const steamCmd = v.command || (steamUser ? "switch" : "open");
-        if (steamCmd === "switch") {
-          // Kill Steam → user can restart it and pick an account
+        if (steamUser) {
+          // Kill Steam, then relaunch logged into the specific saved account.
+          // Requires "Remember my password" was used for this account before.
           if (platform === "win32") {
             await run(`taskkill /f /im steam.exe`).catch(() => {});
-            // Re-launch Steam after short delay (no auto-login flag)
-            await new Promise(r => setTimeout(r, 1500));
-            const steamExe = `"C:\\Program Files (x86)\\Steam\\steam.exe"`;
-            await run(`start "" ${steamExe} -noreactlogin`).catch(() => run(`start steam://open/main`).catch(() => {}));
+            await new Promise(r => setTimeout(r, 2000));
+            // Try default install path; fall back to PATH
+            const loginArgs = `-login ${steamUser}`;
+            await run(`start "" "C:\\Program Files (x86)\\Steam\\steam.exe" ${loginArgs}`)
+              .catch(() => run(`start "" "C:\\Program Files\\Steam\\steam.exe" ${loginArgs}`)
+              .catch(() => run(`start steam://open/main`).catch(() => {})));
           } else if (platform === "darwin") {
             await run(`killall Steam 2>/dev/null || true`);
-            await new Promise(r => setTimeout(r, 1500));
-            await run(`open -a Steam`).catch(() => {});
+            await new Promise(r => setTimeout(r, 2000));
+            await run(`open -a Steam --args -login ${steamUser}`).catch(() => run(`open -a Steam`).catch(() => {}));
           } else {
             await run(`pkill steam 2>/dev/null || true`);
+            await new Promise(r => setTimeout(r, 1500));
+            await run(`steam -login ${steamUser}`).catch(() => run(`steam`).catch(() => {}));
           }
         } else {
-          // Just open / bring Steam to front
-          await openUrl("steam://open/main").catch(() => openUrl("https://store.steampowered.com"));
+          await openUrl("steam://open/main");
         }
         break;
       }
