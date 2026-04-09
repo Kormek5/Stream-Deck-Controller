@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { db, buttonsTable, activityTable, profilesTable } from "@workspace/db";
 import { eq, desc, and, isNull } from "drizzle-orm";
+import { sendToAllAgents, getAgentCount } from "../lib/agent-bridge";
 import {
   CreateButtonBody,
   UpdateButtonBody,
@@ -474,6 +475,17 @@ router.post("/buttons/:id/execute", async (req, res) => {
       message = `Action executed: ${button.label}`;
   }
 
+  // Forward the action to any connected desktop agents
+  const agentsSent = sendToAllAgents({
+    type: "execute",
+    button: {
+      id: button.id,
+      label: button.label,
+      actionType: button.actionType,
+      actionValue: button.actionValue,
+    },
+  });
+
   await db.update(buttonsTable)
     .set({ executeCount: button.executeCount + 1, lastExecutedAt: new Date() })
     .where(eq(buttonsTable.id, id));
@@ -483,10 +495,10 @@ router.post("/buttons/:id/execute", async (req, res) => {
     buttonLabel: button.label,
     actionType: button.actionType,
     success,
-    message,
+    message: agentsSent > 0 ? `[Agent] ${message}` : message,
   });
 
-  res.json({ success, message, buttonId: id });
+  res.json({ success, message: agentsSent > 0 ? `[Agent] ${message}` : message, buttonId: id, agentsSent });
 });
 
 router.get("/activity", async (req, res) => {

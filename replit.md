@@ -27,12 +27,22 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 
 ### API Server (`artifacts/api-server`)
 - **Preview path**: `/api`
-- **Routes**: `/api/profiles`, `/api/profiles/:id/buttons`, `/api/buttons`, `/api/buttons/:id/execute`, `/api/activity`, `/api/stats`
+- **Routes**: `/api/profiles`, `/api/profiles/:id/buttons`, `/api/folders`, `/api/buttons`, `/api/buttons/:id/execute`, `/api/activity`, `/api/stats`, `/api/agent-status`
+- **WebSocket**: `/api/ws/agent` — real-time channel for desktop agents
+
+## Desktop Agent Architecture
+
+- Agent script: `artifacts/streamdeck/public/agent/agent.js` (downloadable, Node.js 18+)
+- One external dep: `ws` (WebSocket client)
+- Server-side bridge: `artifacts/api-server/src/lib/agent-bridge.ts`
+- When a button is pressed, the execute route calls `sendToAllAgents()` which forwards the command to all connected desktop agents via WebSocket
+- Agent handles 28 action types: real hotkeys, system commands (lock/sleep/shutdown), media keys, URL schemes (zoom://, discord://, spotify:), and more
 
 ## Database Schema
 
 - `profiles` — button deck profiles (Gaming, Work, Media, etc.)
-- `buttons` — individual buttons with action config per profile
+- `folders` — folders for grouping buttons within a profile
+- `buttons` — individual buttons with action config per profile (nullable `folderId` FK)
 - `activity` — log of all button executions
 
 ## Key Commands
