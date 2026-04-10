@@ -44,6 +44,15 @@ router.put("/folders/:id", async (req, res) => {
   res.json(folder);
 });
 
+router.patch("/folders/:id/position", async (req, res) => {
+  const id = Number(req.params.id);
+  const position = Number(req.body?.position);
+  if (isNaN(position)) { res.status(400).json({ error: "position required" }); return; }
+  const [folder] = await db.update(foldersTable).set({ position }).where(eq(foldersTable.id, id)).returning();
+  if (!folder) { res.status(404).json({ error: "Not found" }); return; }
+  res.json(folder);
+});
+
 router.delete("/folders/:id", async (req, res) => {
   const { id } = DeleteFolderParams.parse({ id: Number(req.params.id) });
   await db.delete(foldersTable).where(eq(foldersTable.id, id));

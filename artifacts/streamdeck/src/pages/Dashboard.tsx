@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import React, { useState, useMemo } from "react";
 import {
   useListProfiles,
   useListButtons,
@@ -60,6 +60,10 @@ export function Dashboard() {
   const executeButton = useExecuteButton();
   const createButton = useCreateButton();
   const deleteButton = useDeleteButton();
+
+  // ── Drag-and-drop state ──────────────────────────────────────────────────────
+  const [dragSrc, setDragSrc] = useState<{ kind: "button" | "folder"; id: number; pos: number } | null>(null);
+  const [dragOverPos, setDragOverPos] = useState<number | null>(null);
 
   const invalidateButtons = () => {
     queryClient.invalidateQueries({ queryKey: getListButtonsQueryKey(currentProfileId || 0) });
@@ -189,6 +193,77 @@ export function Dashboard() {
     } else {
       setOpenFolderId(folder.id);
     }
+  };
+
+  // ── Drag-and-drop handlers ───────────────────────────────────────────────────
+  const handleDragStart = (kind: "button" | "folder", id: number, pos: number) => {
+    setDragSrc({ kind, id, pos });
+    dragCounter.current = 0;
+  };
+
+
+  const patchBtnPos    = (id: number, pos: number) =>
+    fetch(`/api/buttons/${id}/position`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ position: pos }) });
+  const patchFolderPos = (id: number, pos: number) =>
+    fetch(`/api/folders/${id}/position`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ position: pos }) });
+
+  const handleDrop = async (targetPos: number, targetKind: "button" | "folder" | "empty", targetId?: number) => {
+    setDragOverPos(null);
+    dragCounter.current = 0;
+    if (!dragSrc || dragSrc.pos === targetPos) { setDragSrc(null); return; }
+
+    const srcPos  = dragSrc.pos;
+    const srcId   = dragSrc.id;
+    const srcKind = dragSrc.kind;
+    setDragSrc(null);
+
+    const patch = srcKind === "button" ? patchBtnPos : patchFolderPos;
+    const patchTarget = targetKind === "button" ? patchBtnPos : targetKind === "folder" ? patchFolderPos : null;
+
+    try {
+      await patch(srcId, targetPos);
+      if (patchTarget && targetId !== undefined) await patchTarget(targetId, srcPos);
+      queryClient.invalidateQueries({ queryKey: getListButtonsQueryKey(currentProfileId || 0) });
+      queryClient.invalidateQueries({ queryKey: getListFoldersQueryKey(currentProfileId || 0) });
+    } catch {
+      toast({ title: "Error", description: "Could not move item", variant: "destructive" });
+    }
+  };
+
+  const handleDragEnd = () => {
+    setDragSrc(null);
+    setDragOverPos(null);
+  };
+
+  const dragCell = (pos: number, kind: "button" | "folder" | "empty", id?: number, inner?: React.ReactNode) => {
+    const isDraggingSrc = dragSrc?.pos === pos;
+    const isDragOver    = dragOverPos === pos && dragSrc !== null && dragSrc.pos !== pos;
+    return (
+      <div
+        key={`cell-${pos}`}
+        className="relative w-full h-full"
+        draggable={editMode && kind !== "empty"}
+        onDragStart={kind !== "empty" && id !== undefined
+          ? (e) => { e.dataTransfer.effectAllowed = "move"; handleDragStart(kind as "button" | "folder", id, pos); }
+          : undefined}
+        onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; setDragOverPos(pos); }}
+        onDragLeave={(e) => {
+          if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragOverPos(null);
+        }}
+        onDrop={(e) => { e.preventDefault(); handleDrop(pos, kind, id); }}
+        onDragEnd={handleDragEnd}
+        style={{
+          opacity: isDraggingSrc ? 0.35 : 1,
+          outline: isDragOver ? "2px solid hsl(var(--primary))" : "none",
+          outlineOffset: "-2px",
+          borderRadius: "16px",
+          transition: "opacity 0.15s, outline 0.1s",
+          cursor: editMode && kind !== "empty" ? "grab" : undefined,
+        }}
+      >
+        {inner}
+      </div>
+    );
   };
 
   const isLoading = buttonsLoading || foldersLoading;
@@ -402,20 +477,18 @@ export function Dashboard() {
             {Array.from({ length: GRID_SIZE }, (_, pos) => {
               const button = buttonsByPos.get(pos);
               if (button) {
-                return (
+                return dragCell(pos, "button", button.id,
                   <StreamButton
-                    key={button.id}
                     button={button}
                     isEditMode={editMode}
-                    onClick={() => handleButtonPress(button)}
+                    onClick={() => !dragSrc && handleButtonPress(button)}
                     onDuplicate={() => handleDuplicate(button)}
                     onDelete={() => handleDelete(button)}
                   />
                 );
               }
-              return (
+              return dragCell(pos, "empty", undefined,
                 <button
-                  key={`empty-${pos}`}
                   onClick={() => editMode && handleAddButton()}
                   disabled={!editMode}
                   className={`w-full h-full rounded-2xl border-2 border-dashed flex items-center justify-center transition-all duration-200 ${
@@ -433,32 +506,29 @@ export function Dashboard() {
           <div className="grid grid-cols-3 md:grid-cols-5 gap-3 md:gap-4 w-full max-w-4xl h-[min(80vh,800px)]">
             {rootGridItems!.map((item) => {
               if (item.kind === "folder") {
-                return (
+                return dragCell(item.pos, "folder", item.data.id,
                   <FolderTile
-                    key={`folder-${item.data.id}`}
                     folder={item.data}
                     isEditMode={editMode}
-                    onClick={() => handleFolderClick(item.data)}
+                    onClick={() => !dragSrc && handleFolderClick(item.data)}
                     onEdit={() => handleFolderClick(item.data)}
                     buttonCount={buttonCountByFolder.get(item.data.id) ?? 0}
                   />
                 );
               }
               if (item.kind === "button") {
-                return (
+                return dragCell(item.pos, "button", item.data.id,
                   <StreamButton
-                    key={`btn-${item.data.id}`}
                     button={item.data}
                     isEditMode={editMode}
-                    onClick={() => handleButtonPress(item.data)}
+                    onClick={() => !dragSrc && handleButtonPress(item.data)}
                     onDuplicate={() => handleDuplicate(item.data)}
                     onDelete={() => handleDelete(item.data)}
                   />
                 );
               }
-              return (
+              return dragCell(item.pos, "empty", undefined,
                 <button
-                  key={`empty-${item.pos}`}
                   onClick={() => editMode && handleAddButton()}
                   disabled={!editMode}
                   className={`w-full h-full rounded-2xl border-2 border-dashed flex items-center justify-center transition-all duration-200 ${

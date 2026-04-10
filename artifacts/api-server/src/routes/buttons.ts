@@ -72,6 +72,15 @@ router.put("/buttons/:id", async (req, res) => {
   res.json(button);
 });
 
+router.patch("/buttons/:id/position", async (req, res) => {
+  const id = Number(req.params.id);
+  const position = Number(req.body?.position);
+  if (isNaN(position)) { res.status(400).json({ error: "position required" }); return; }
+  const [button] = await db.update(buttonsTable).set({ position }).where(eq(buttonsTable.id, id)).returning();
+  if (!button) { res.status(404).json({ error: "Not found" }); return; }
+  res.json(button);
+});
+
 router.delete("/buttons/:id", async (req, res) => {
   const { id } = DeleteButtonParams.parse({ id: Number(req.params.id) });
   await db.delete(buttonsTable).where(eq(buttonsTable.id, id));
