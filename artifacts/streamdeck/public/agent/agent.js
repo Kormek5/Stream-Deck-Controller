@@ -852,24 +852,21 @@ async function captureFrame(ws) {
 
   try {
     if (platform === "win32") {
-      // Write PS1 to temp file (avoids all cmd.exe quoting/dollar-sign issues)
-      const jpgEsc = tmpJpg.replace(/\\/g, "\\\\");
-      const txtEsc = tmpTxt.replace(/\\/g, "\\\\");
+      // NOTE: PowerShell double-quoted strings do NOT need backslash escaping.
+      // Single backslashes in Windows paths (C:\Temp\file) are written as-is.
       await runPsScript(`
 Add-Type -AssemblyName System.Windows.Forms,System.Drawing
-$s  = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
-$bmp = New-Object System.Drawing.Bitmap($s.Width, $s.Height)
-$gfx = [System.Drawing.Graphics]::FromImage($bmp)
+$s    = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+$bmp  = New-Object System.Drawing.Bitmap($s.Width, $s.Height)
+$gfx  = [System.Drawing.Graphics]::FromImage($bmp)
 $gfx.CopyFromScreen(0, 0, 0, 0, $bmp.Size)
 $gfx.Dispose()
-$codec = [System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders() |
-         Where-Object { $_.MimeType -eq 'image/jpeg' }
+$codec = [System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders() | Where-Object { $_.MimeType -eq 'image/jpeg' }
 $enc   = New-Object System.Drawing.Imaging.EncoderParameters(1)
-$enc.Param[0] = New-Object System.Drawing.Imaging.EncoderParameter(
-    [System.Drawing.Imaging.Encoder]::Quality, 40L)
-$bmp.Save("${jpgEsc}", $codec, $enc)
+$enc.Param[0] = New-Object System.Drawing.Imaging.EncoderParameter([System.Drawing.Imaging.Encoder]::Quality, 40L)
+$bmp.Save("${tmpJpg}", $codec, $enc)
 $bmp.Dispose()
-Set-Content -Path "${txtEsc}" -Value ($s.Width.ToString() + " " + $s.Height.ToString()) -NoNewline
+"$($s.Width) $($s.Height)" | Set-Content -Path "${tmpTxt}" -NoNewline
 `);
       try {
         const res = fs.readFileSync(tmpTxt, "utf8").trim();
