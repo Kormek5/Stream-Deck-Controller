@@ -32,8 +32,9 @@ export const ACTION_TYPES = [
   { value: "telegram" as const,label: "Telegram",             icon: Send,         group: "Meetings" },
   // Music & Media
   { value: "spotify" as const,      label: "Spotify",              icon: Music,        group: "Music" },
-  { value: "yandexmusic" as const,  label: "Яндекс Музыка",        icon: Music,        group: "Music" },
-  { value: "obs" as const,          label: "OBS Studio",           icon: Video,        group: "Music" },
+  { value: "yandexmusic" as const,      label: "Яндекс Музыка",      icon: Music,        group: "Music" },
+  { value: "wallpaperengine" as const,  label: "Wallpaper Engine",   icon: Image,        group: "Music" },
+  { value: "obs" as const,              label: "OBS Studio",         icon: Video,        group: "Music" },
   // Dev & Productivity
   { value: "github" as const,  label: "GitHub",               icon: Github,       group: "Dev" },
   { value: "notion" as const,  label: "Notion",               icon: FileText,     group: "Dev" },
@@ -331,6 +332,36 @@ export const ACTION_VALUE_CONFIG: Record<string, {
       { value: "open", label: "Open Spotify" },
       { value: "open-liked", label: "Open Liked Songs" },
       { value: "open-queue", label: "Open Queue" },
+    ],
+  },
+  wallpaperengine: {
+    label: "Wallpaper Engine",
+    type: "composite",
+    fields: [
+      {
+        key: "command",
+        label: "Команда",
+        type: "select",
+        placeholder: "Выберите команду",
+        options: [
+          { value: "play",           label: "Воспроизвести / продолжить" },
+          { value: "pause",          label: "Пауза" },
+          { value: "mute",           label: "Выключить звук" },
+          { value: "unmute",         label: "Включить звук" },
+          { value: "next",           label: "Следующие обои" },
+          { value: "prev",           label: "Предыдущие обои" },
+          { value: "open-wallpaper", label: "Открыть обои (по пути к .pkg)" },
+          { value: "volume",         label: "Установить громкость (0–100)" },
+          { value: "open",           label: "Запустить Wallpaper Engine" },
+          { value: "quit",           label: "Закрыть Wallpaper Engine" },
+        ],
+      },
+      {
+        key: "value",
+        label: "Значение (путь к .pkg или уровень громкости)",
+        type: "text",
+        placeholder: "C:\\...\\project.pkg   или   75",
+      },
     ],
   },
   yandexmusic: {

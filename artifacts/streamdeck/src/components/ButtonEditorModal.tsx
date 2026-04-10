@@ -49,7 +49,8 @@ const ICONIFY_SUGGESTIONS: Record<string, string[]> = {
   discord:    ["logos:discord-icon", "simple-icons:discord"],
   steam:      ["logos:steam", "simple-icons:steam"],
   spotify:     ["logos:spotify-icon", "simple-icons:spotify"],
-  yandexmusic: ["simple-icons:yandexmusic", "logos:yandex-icon"],
+  yandexmusic:     ["simple-icons:yandexmusic", "logos:yandex-icon"],
+  wallpaperengine: ["fluent:wallpaper-24-regular", "material-symbols:wallpaper"],
   obs:        ["logos:obs-studio", "simple-icons:obsstudio"],
   github:     ["logos:github-icon", "simple-icons:github"],
   vscode:     ["logos:visual-studio-code", "simple-icons:visualstudiocode"],
@@ -295,7 +296,7 @@ const formSchema = z.object({
   label: z.string().min(1, "Label is required").max(20),
   icon: z.string().min(1, "Icon is required"),
   color: z.string().min(1, "Color is required"),
-  actionType: z.enum(["url", "hotkey", "script", "vpn", "steam", "app", "media", "obs", "github", "twitch", "zoom", "discord", "spotify", "yandexmusic", "slack", "teams", "telegram", "notion", "browser", "system", "googlemeet", "vscode", "youtube", "gmail", "whatsapp", "figma", "x", "chatgpt", "airdrop", "multi", "clipboard", "type", "notification", "wol"]),
+  actionType: z.enum(["url", "hotkey", "script", "vpn", "steam", "app", "media", "obs", "github", "twitch", "zoom", "discord", "spotify", "yandexmusic", "wallpaperengine", "slack", "teams", "telegram", "notion", "browser", "system", "googlemeet", "vscode", "youtube", "gmail", "whatsapp", "figma", "x", "chatgpt", "airdrop", "multi", "clipboard", "type", "notification", "wol"]),
   actionValue: z.string(),
   position: z.number().int().min(0).max(29),
 });

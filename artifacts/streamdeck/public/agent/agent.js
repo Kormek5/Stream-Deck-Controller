@@ -591,6 +591,56 @@ async function handleExecute(button) {
         break;
       }
 
+      case "wallpaperengine": {
+        const v = parseComposite(actionValue);
+        const weCmd = v.command || actionValue;
+        const weVal = v.value || "";
+
+        // Helper: resolve wallpaper_engine exe from Steam registry
+        const weFindExePs =
+          `$sp = (Get-ItemProperty 'HKCU:\\Software\\Valve\\Steam' -ErrorAction SilentlyContinue).SteamPath\n` +
+          `if (-not $sp) { $sp = 'C:\\Program Files (x86)\\Steam' }\n` +
+          `$e64 = Join-Path $sp 'steamapps\\common\\wallpaper_engine\\wallpaper64.exe'\n` +
+          `$e32 = Join-Path $sp 'steamapps\\common\\wallpaper_engine\\wallpaper32.exe'\n` +
+          `if (Test-Path $e64) { $exe = $e64 } elseif (Test-Path $e32) { $exe = $e32 } else { $exe = $null }`;
+
+        if (platform === "win32") {
+          if (weCmd === "open") {
+            // Launch Wallpaper Engine via Steam protocol
+            await openUrl("steam://launch/431960");
+          } else if (weCmd === "quit") {
+            await runPsScript(`Stop-Process -Name 'wallpaper64','wallpaper32' -Force -ErrorAction SilentlyContinue`);
+            console.log("  → Wallpaper Engine: quit");
+          } else {
+            // All other commands go through wallpaper_engine CLI
+            const cliArgMap = {
+              play:             ["-control", "play"],
+              pause:            ["-control", "pause"],
+              mute:             ["-control", "mute"],
+              unmute:           ["-control", "unmute"],
+              next:             ["-control", "nextWallpaper"],
+              prev:             ["-control", "prevWallpaper"],
+              "open-wallpaper": weVal ? ["-control", "openWallpaper", "-file", weVal] : ["-control", "nextWallpaper"],
+              volume:           weVal ? ["-control", "volume", "-volume", String(parseInt(weVal, 10) || 50)] : null,
+            };
+            const args = cliArgMap[weCmd];
+            if (args) {
+              const argsStr = args.map(a => `'${a}'`).join(",");
+              await runPsScript(
+                `${weFindExePs}\n` +
+                `if ($exe) { Start-Process -FilePath $exe -ArgumentList ${argsStr} -WindowStyle Hidden }\n` +
+                `else { Write-Warning 'Wallpaper Engine not found. Install via Steam (App ID 431960).' }`
+              );
+              console.log(`  → Wallpaper Engine: ${weCmd}`, weVal || "");
+            }
+          }
+        } else {
+          // Wallpaper Engine is Windows-only
+          await openUrl("https://store.steampowered.com/app/431960/Wallpaper_Engine/");
+        }
+        break;
+      }
+
       case "yandexmusic": {
         // Media keys work globally with Yandex Music desktop/web player
         const ymMediaMap = {

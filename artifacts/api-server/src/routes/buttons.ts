@@ -280,6 +280,23 @@ router.post("/buttons/:id/execute", async (req, res) => {
       message = `Spotify: ${spLabels[button.actionValue] ?? button.actionValue}`;
       break;
     }
+    case "wallpaperengine": {
+      const we = parseComposite(button.actionValue);
+      const weLabels: Record<string, string> = {
+        play:           "Воспроизвести",
+        pause:          "Пауза",
+        mute:           "Выкл. звук",
+        unmute:         "Вкл. звук",
+        next:           "Следующие обои",
+        prev:           "Предыдущие обои",
+        "open-wallpaper": "Открыть обои",
+        volume:         `Громкость${we.value ? `: ${we.value}` : ""}`,
+        open:           "Запустить WE",
+        quit:           "Закрыть WE",
+      };
+      message = `Wallpaper Engine: ${weLabels[we.command ?? ""] ?? we.command ?? "команда"}`;
+      break;
+    }
     case "yandexmusic": {
       const ymLabels: Record<string, string> = {
         playpause:       "Play/Pause",
