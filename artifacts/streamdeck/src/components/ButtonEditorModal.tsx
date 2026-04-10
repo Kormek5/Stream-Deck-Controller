@@ -751,7 +751,7 @@ export function ButtonEditorModal({ open, onOpenChange, profileId, button, folde
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col flex-1 min-h-0">
-          <ScrollArea className="flex-1 px-6">
+          <div className="flex-1 overflow-y-auto min-h-0 px-6">
           <div className="space-y-4 py-2 pb-4">
             <FormField
               control={form.control}
@@ -932,7 +932,7 @@ export function ButtonEditorModal({ open, onOpenChange, profileId, button, folde
             )}
 
           </div>
-          </ScrollArea>
+          </div>
 
             <div className="flex items-center justify-between px-6 py-4 border-t border-border shrink-0">
               {button ? (
