@@ -591,6 +591,64 @@ async function handleExecute(button) {
         break;
       }
 
+      case "yandexmusic": {
+        // Media keys work globally with Yandex Music desktop/web player
+        const ymMediaMap = {
+          playpause:  "playpause",
+          next:       "nexttrack",
+          prev:       "prevtrack",
+          volumeup:   "volumeup",
+          volumedown: "volumedown",
+        };
+        if (ymMediaMap[actionValue]) {
+          await executeMediaAction(ymMediaMap[actionValue]);
+          break;
+        }
+        // URL-based actions
+        if (actionValue === "open") {
+          await openUrl("https://music.yandex.ru");
+          break;
+        }
+        if (actionValue === "open-liked") {
+          await openUrl("https://music.yandex.ru/users/ym:me/playlists/3");
+          break;
+        }
+        if (actionValue === "open-playlist") {
+          await openUrl("https://music.yandex.ru/playlists");
+          break;
+        }
+        // Window-focused actions: find Yandex Music window, focus it, send key
+        // like → L, dislike → D (Yandex Music desktop app shortcuts when focused)
+        // shuffle → S, repeat → R
+        const ymFocusKey = { like: "l", dislike: "d", shuffle: "s", repeat: "r" }[actionValue];
+        if (ymFocusKey && platform === "win32") {
+          await runPsScript(
+            `Add-Type @'\n` +
+            `using System; using System.Runtime.InteropServices;\n` +
+            `public class YMHelper {\n` +
+            `  [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);\n` +
+            `  [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);\n` +
+            `}\n` +
+            `'@ -Language CSharp -ErrorAction SilentlyContinue\n` +
+            `Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue\n` +
+            `$proc = Get-Process | Where-Object { $_.MainWindowHandle -ne 0 -and ($_.MainWindowTitle -match 'Яндекс.?Музык|Yandex.?Music' -or $_.ProcessName -match 'Yandex.?Music|ym-') } | Select-Object -First 1\n` +
+            `if ($proc) {\n` +
+            `  [YMHelper]::ShowWindow($proc.MainWindowHandle, 9)\n` +
+            `  [YMHelper]::SetForegroundWindow($proc.MainWindowHandle)\n` +
+            `  Start-Sleep -Milliseconds 400\n` +
+            `  [System.Windows.Forms.SendKeys]::SendWait("${ymFocusKey}")\n` +
+            `} else { Write-Host "Yandex Music window not found" }`
+          );
+          console.log(`  → Яндекс Музыка: sent key '${ymFocusKey}' to focused window`);
+        } else if (ymFocusKey && platform === "darwin") {
+          // On macOS, try to focus via osascript
+          await run(`osascript -e 'tell application "Yandex Music" to activate'`).catch(() => {});
+          await new Promise(r => setTimeout(r, 400));
+          await sendHotkey(ymFocusKey);
+        }
+        break;
+      }
+
       case "obs": {
         const v = parseComposite(actionValue);
         const cmd = v.command || actionValue;

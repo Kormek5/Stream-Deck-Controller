@@ -280,6 +280,24 @@ router.post("/buttons/:id/execute", async (req, res) => {
       message = `Spotify: ${spLabels[button.actionValue] ?? button.actionValue}`;
       break;
     }
+    case "yandexmusic": {
+      const ymLabels: Record<string, string> = {
+        playpause:       "Play/Pause",
+        next:            "Следующий трек",
+        prev:            "Предыдущий трек",
+        volumeup:        "Громче",
+        volumedown:      "Тише",
+        like:            "Мне нравится",
+        dislike:         "Не нравится",
+        shuffle:         "Перемешать",
+        repeat:          "Повторить",
+        open:            "Открыть ЯМ",
+        "open-liked":    "Мне нравится",
+        "open-playlist": "Мои плейлисты",
+      };
+      message = `Яндекс Музыка: ${ymLabels[button.actionValue] ?? button.actionValue}`;
+      break;
+    }
     case "telegram": {
       const tg = parseComposite(button.actionValue);
       const tgLabels: Record<string, string> = {

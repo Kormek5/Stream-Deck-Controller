@@ -31,8 +31,9 @@ export const ACTION_TYPES = [
   { value: "slack" as const,   label: "Slack",                icon: Hash,         group: "Meetings" },
   { value: "telegram" as const,label: "Telegram",             icon: Send,         group: "Meetings" },
   // Music & Media
-  { value: "spotify" as const, label: "Spotify",              icon: Music,        group: "Music" },
-  { value: "obs" as const,     label: "OBS Studio",           icon: Video,        group: "Music" },
+  { value: "spotify" as const,      label: "Spotify",              icon: Music,        group: "Music" },
+  { value: "yandexmusic" as const,  label: "Яндекс Музыка",        icon: Music,        group: "Music" },
+  { value: "obs" as const,          label: "OBS Studio",           icon: Video,        group: "Music" },
   // Dev & Productivity
   { value: "github" as const,  label: "GitHub",               icon: Github,       group: "Dev" },
   { value: "notion" as const,  label: "Notion",               icon: FileText,     group: "Dev" },
@@ -330,6 +331,24 @@ export const ACTION_VALUE_CONFIG: Record<string, {
       { value: "open", label: "Open Spotify" },
       { value: "open-liked", label: "Open Liked Songs" },
       { value: "open-queue", label: "Open Queue" },
+    ],
+  },
+  yandexmusic: {
+    label: "Действие Яндекс Музыки",
+    type: "select",
+    options: [
+      { value: "playpause",   label: "Play / Pause" },
+      { value: "next",        label: "Следующий трек" },
+      { value: "prev",        label: "Предыдущий трек" },
+      { value: "volumeup",    label: "Громче" },
+      { value: "volumedown",  label: "Тише" },
+      { value: "like",        label: "Мне нравится / убрать лайк" },
+      { value: "dislike",     label: "Не нравится / скрыть трек" },
+      { value: "shuffle",     label: "Перемешать" },
+      { value: "repeat",      label: "Повторить" },
+      { value: "open",        label: "Открыть Яндекс Музыку" },
+      { value: "open-liked",  label: "Открыть «Мне нравится»" },
+      { value: "open-playlist", label: "Мои плейлисты" },
     ],
   },
   telegram: {
