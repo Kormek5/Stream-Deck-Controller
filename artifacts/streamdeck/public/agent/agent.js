@@ -1127,6 +1127,7 @@ async function takeAndSendScreenshot() {
 
 function connect() {
   const wsUrl = buildWsUrl(serverUrl);
+  console.log(`\n=== StreamDeck Agent v1.2 (Live Stream) ===`);
   console.log(`🔌 Connecting to ${wsUrl} …`);
 
   const ws = new WebSocket(wsUrl, {
