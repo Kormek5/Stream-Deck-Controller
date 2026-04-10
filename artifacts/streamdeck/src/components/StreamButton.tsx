@@ -162,10 +162,11 @@ export function StreamButton({ button, isEditMode, onClick, onLongPress, onDupli
           }}
         >
           <span style={{
-            fontSize: 10.5,
-            fontWeight: 500,
-            color: "rgba(255,255,255,0.85)",
-            letterSpacing: 0.1,
+            fontFamily: "'Rajdhani', sans-serif",
+            fontSize: 12,
+            fontWeight: 600,
+            color: "rgba(255,255,255,0.88)",
+            letterSpacing: 0.4,
             overflow: "hidden",
             textOverflow: "ellipsis",
             whiteSpace: "nowrap",

@@ -18,7 +18,6 @@ import { Connect } from "@/pages/Connect";
 import { ScreenshotViewer } from "@/pages/ScreenshotViewer";
 import { Monitor } from "@/pages/Monitor";
 import { LiveViewer } from "@/pages/LiveViewer";
-import { FontPreview } from "@/pages/FontPreview";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -61,7 +60,6 @@ function Router() {
       <Route path="/screenshot" component={ScreenshotViewer} />
       <Route path="/live" component={LiveViewer} />
       <Route path="/monitor" component={Monitor} />
-      <Route path="/font-preview" component={FontPreview} />
       <Route component={NotFound} />
     </Switch>
   );
