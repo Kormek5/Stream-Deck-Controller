@@ -198,7 +198,6 @@ export function Dashboard() {
   // ── Drag-and-drop handlers ───────────────────────────────────────────────────
   const handleDragStart = (kind: "button" | "folder", id: number, pos: number) => {
     setDragSrc({ kind, id, pos });
-    dragCounter.current = 0;
   };
 
 
@@ -209,7 +208,6 @@ export function Dashboard() {
 
   const handleDrop = async (targetPos: number, targetKind: "button" | "folder" | "empty", targetId?: number) => {
     setDragOverPos(null);
-    dragCounter.current = 0;
     if (!dragSrc || dragSrc.pos === targetPos) { setDragSrc(null); return; }
 
     const srcPos  = dragSrc.pos;
