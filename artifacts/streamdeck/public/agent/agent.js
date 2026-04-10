@@ -12,7 +12,7 @@
  *   npm install ws
  */
 
-const { execSync, exec } = require("child_process");
+const { execSync, exec, spawn } = require("child_process");
 const os = require("os");
 const path = require("path");
 const fs = require("fs");
@@ -838,69 +838,151 @@ async function handleExecute(button) {
   }
 }
 
+// ── Persistent PowerShell Capture Server (Windows) ────────────────────────────
+// Keeps powershell.exe running in background — eliminates ~500ms/frame PS startup cost
+let psCapProc   = null;  // child_process.ChildProcess
+let psCapBuf    = "";    // stdout line buffer
+let psCapWaiter = null;  // { resolve, reject, timer }
+
+const PS_CAP_SCRIPT = `
+Add-Type -AssemblyName System.Windows.Forms,System.Drawing
+[System.Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$codec = [System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders() |
+         Where-Object { $_.MimeType -eq 'image/jpeg' }
+$enc   = New-Object System.Drawing.Imaging.EncoderParameters(1)
+$enc.Param[0] = New-Object System.Drawing.Imaging.EncoderParameter(
+    [System.Drawing.Imaging.Encoder]::Quality, 40L)
+[System.Console]::WriteLine('READY')
+[System.Console]::Out.Flush()
+while ($true) {
+    $cmd = [System.Console]::ReadLine()
+    if ($null -eq $cmd -or $cmd -eq 'QUIT') { break }
+    if ($cmd -eq 'CAPTURE') {
+        try {
+            $s   = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+            $bmp = New-Object System.Drawing.Bitmap($s.Width, $s.Height)
+            $gfx = [System.Drawing.Graphics]::FromImage($bmp)
+            $gfx.CopyFromScreen(0, 0, 0, 0, $bmp.Size)
+            $gfx.Dispose()
+            $ms  = New-Object System.IO.MemoryStream
+            $bmp.Save($ms, $codec, $enc)
+            $bmp.Dispose()
+            $b64 = [System.Convert]::ToBase64String($ms.ToArray())
+            $ms.Dispose()
+            [System.Console]::WriteLine("FRAME:$($s.Width):$($s.Height):$b64")
+        } catch {
+            [System.Console]::WriteLine("ERROR:$_")
+        }
+        [System.Console]::Out.Flush()
+    }
+}
+`;
+
+function psCapStart() {
+  if (psCapProc) return;
+  const tmpPs = path.join(os.tmpdir(), "sd_cap_server.ps1");
+  fs.writeFileSync(tmpPs, "\ufeff" + PS_CAP_SCRIPT, "utf8");
+  psCapProc = spawn("powershell", ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", tmpPs], {
+    stdio: ["pipe", "pipe", "pipe"],
+    windowsHide: true,
+  });
+  psCapBuf = "";
+  psCapProc.stdout.setEncoding("utf8");
+  psCapProc.stdout.on("data", (chunk) => {
+    psCapBuf += chunk;
+    let nl;
+    while ((nl = psCapBuf.indexOf("\n")) !== -1) {
+      const line = psCapBuf.slice(0, nl).replace(/\r$/, "");
+      psCapBuf = psCapBuf.slice(nl + 1);
+      if (!line) continue;
+      if (line === "READY") { console.log("  📹 Capture server ready"); return; }
+      if (line.startsWith("FRAME:") && psCapWaiter) {
+        const rest   = line.slice(6);
+        const c1     = rest.indexOf(":");
+        const c2     = rest.indexOf(":", c1 + 1);
+        const width  = parseInt(rest.slice(0, c1));
+        const height = parseInt(rest.slice(c1 + 1, c2));
+        const b64    = rest.slice(c2 + 1);
+        clearTimeout(psCapWaiter.timer);
+        psCapWaiter.resolve({ width, height, b64 });
+        psCapWaiter = null;
+      } else if (line.startsWith("ERROR:") && psCapWaiter) {
+        clearTimeout(psCapWaiter.timer);
+        psCapWaiter.reject(new Error(line.slice(6)));
+        psCapWaiter = null;
+      }
+    }
+  });
+  psCapProc.stderr.on("data", (d) => console.error("  PS cap err:", d.toString().trim().slice(0, 200)));
+  psCapProc.on("close", () => {
+    psCapProc = null;
+    if (psCapWaiter) { clearTimeout(psCapWaiter.timer); psCapWaiter.reject(new Error("Capture server closed")); psCapWaiter = null; }
+    try { fs.unlinkSync(tmpPs); } catch {}
+  });
+}
+
+function psCapStop() {
+  if (!psCapProc) return;
+  try { psCapProc.stdin.write("QUIT\n"); } catch {}
+  setTimeout(() => { if (psCapProc) { psCapProc.kill(); psCapProc = null; } }, 800);
+}
+
+function psCapCapture() {
+  return new Promise((resolve, reject) => {
+    if (!psCapProc || psCapProc.exitCode !== null) { reject(new Error("Capture server not running")); return; }
+    if (psCapWaiter) { reject(new Error("Capture in progress")); return; }
+    const timer = setTimeout(() => { psCapWaiter = null; reject(new Error("Capture timeout")); }, 9000);
+    psCapWaiter = { resolve, reject, timer };
+    psCapProc.stdin.write("CAPTURE\n");
+  });
+}
+
 // ── Live Screen Stream ─────────────────────────────────────────────────────────
-let streamTimer   = null;
-let frameCapturing = false;  // prevent overlapping captures
+let streamTimer    = null;
+let frameCapturing = false;
 let streamWidth    = 1920;
 let streamHeight   = 1080;
 
 async function captureFrame(ws) {
   if (!ws || ws.readyState !== WebSocket.OPEN || frameCapturing) return;
   frameCapturing = true;
-  const tmpJpg = path.join(os.tmpdir(), "sd_live_frame.jpg");
-  const tmpTxt = path.join(os.tmpdir(), "sd_live_res.txt");
-
   try {
     if (platform === "win32") {
-      // NOTE: PowerShell double-quoted strings do NOT need backslash escaping.
-      // Single backslashes in Windows paths (C:\Temp\file) are written as-is.
-      await runPsScript(`
-Add-Type -AssemblyName System.Windows.Forms,System.Drawing
-$s    = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
-$bmp  = New-Object System.Drawing.Bitmap($s.Width, $s.Height)
-$gfx  = [System.Drawing.Graphics]::FromImage($bmp)
-$gfx.CopyFromScreen(0, 0, 0, 0, $bmp.Size)
-$gfx.Dispose()
-$codec = [System.Drawing.Imaging.ImageCodecInfo]::GetImageEncoders() | Where-Object { $_.MimeType -eq 'image/jpeg' }
-$enc   = New-Object System.Drawing.Imaging.EncoderParameters(1)
-$enc.Param[0] = New-Object System.Drawing.Imaging.EncoderParameter([System.Drawing.Imaging.Encoder]::Quality, 40L)
-$bmp.Save("${tmpJpg}", $codec, $enc)
-$bmp.Dispose()
-"$($s.Width) $($s.Height)" | Set-Content -Path "${tmpTxt}" -NoNewline
-`);
-      try {
-        const res = fs.readFileSync(tmpTxt, "utf8").trim();
-        const parts = res.split(/\s+/);
-        if (parts.length >= 2) {
-          const w = parseInt(parts[0]); const h = parseInt(parts[1]);
-          if (w > 0 && h > 0) { streamWidth = w; streamHeight = h; }
-        }
-      } catch {}
-
-    } else if (platform === "darwin") {
-      await run(`screencapture -x -t jpeg '${tmpJpg}'`);
-      try {
-        const info = await run(`sips -g pixelWidth -g pixelHeight '${tmpJpg}'`);
-        const m = info.match(/pixelWidth:\s*(\d+)[\s\S]*pixelHeight:\s*(\d+)/);
-        if (m) { streamWidth = parseInt(m[1]); streamHeight = parseInt(m[2]); }
-      } catch {}
+      // Use persistent PS server — fast after first warmup (~50ms vs ~600ms per frame)
+      if (!psCapProc) psCapStart();
+      const { width, height, b64 } = await psCapCapture();
+      streamWidth = width; streamHeight = height;
+      ws.send(JSON.stringify({
+        type: "frame",
+        data: "data:image/jpeg;base64," + b64,
+        width, height,
+        timestamp: Date.now(),
+      }));
     } else {
-      await run(`scrot -q 40 '${tmpJpg}' 2>/dev/null || import -window root -quality 40 '${tmpJpg}'`);
+      // Mac/Linux: use native tools (already fast)
+      const tmpJpg = path.join(os.tmpdir(), "sd_live_frame.jpg");
+      if (platform === "darwin") {
+        await run(`screencapture -x -t jpeg '${tmpJpg}'`);
+        try {
+          const info = await run(`sips -g pixelWidth -g pixelHeight '${tmpJpg}'`);
+          const m = info.match(/pixelWidth:\s*(\d+)[\s\S]*pixelHeight:\s*(\d+)/);
+          if (m) { streamWidth = parseInt(m[1]); streamHeight = parseInt(m[2]); }
+        } catch {}
+      } else {
+        await run(`scrot -q 40 '${tmpJpg}' 2>/dev/null || import -window root -quality 40 '${tmpJpg}'`);
+      }
+      const buf = fs.readFileSync(tmpJpg);
+      try { fs.unlinkSync(tmpJpg); } catch {}
+      ws.send(JSON.stringify({
+        type: "frame",
+        data: "data:image/jpeg;base64," + buf.toString("base64"),
+        width: streamWidth, height: streamHeight,
+        timestamp: Date.now(),
+      }));
     }
-
-    const buf = fs.readFileSync(tmpJpg);
-    ws.send(JSON.stringify({
-      type: "frame",
-      data: "data:image/jpeg;base64," + buf.toString("base64"),
-      width: streamWidth,
-      height: streamHeight,
-      timestamp: Date.now(),
-    }));
   } catch (e) {
-    console.error("  ⚠️  Frame capture error:", e.message);
+    console.error("  ⚠️  Frame error:", e.message);
   } finally {
-    try { fs.unlinkSync(tmpJpg); } catch {}
-    try { fs.unlinkSync(tmpTxt); } catch {}
     frameCapturing = false;
   }
 }
@@ -1164,15 +1246,19 @@ function connect() {
       handleTerminalExec(String(msg.execId), String(msg.command), ws);
     } else if (msg.type === "stream-start") {
       if (!streamTimer) {
-        console.log("  📹 Live stream starting — capturing first frame…");
-        captureFrame(ws).then(() => console.log("  📹 First frame sent")).catch(e => console.error("  ❌ First frame failed:", e.message));
-        streamTimer = setInterval(() => captureFrame(ws), 450); // ~2fps
+        console.log("  📹 Live stream starting…");
+        if (platform === "win32") psCapStart(); // pre-warm PS server
+        captureFrame(ws)
+          .then(() => console.log("  📹 First frame sent"))
+          .catch(e => console.error("  ❌ First frame failed:", e.message));
+        streamTimer = setInterval(() => captureFrame(ws), 200); // ~5fps target
       } else {
         console.log("  📹 Stream already running");
       }
     } else if (msg.type === "stream-stop") {
       if (streamTimer) { clearInterval(streamTimer); streamTimer = null; }
       frameCapturing = false;
+      psCapStop();
       console.log("  📹 Live stream stopped");
     } else if (["mouse-move", "mouse-click", "mouse-scroll"].includes(msg.type)) {
       handleMouseControl(msg);
@@ -1182,6 +1268,7 @@ function connect() {
   ws.on("close", () => {
     if (statsTimer)  { clearInterval(statsTimer);  statsTimer  = null; }
     if (streamTimer) { clearInterval(streamTimer); streamTimer = null; frameCapturing = false; }
+    psCapStop();
     console.log(`\n⚠️  Disconnected. Reconnecting in ${reconnectDelay / 1000}s…`);
     setTimeout(connect, reconnectDelay);
     reconnectDelay = Math.min(reconnectDelay * 2, 30000);
