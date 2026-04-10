@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -41,8 +41,254 @@ import {
   serializeCompositeValue,
   parseCompositeValue,
 } from "@/lib/constants";
-import { Trash2, Info, Plus, X } from "lucide-react";
+import { Trash2, Info, Plus, X, Search, Upload, RotateCcw } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
+
+// ── Iconify suggestions per action type ──────────────────────────────────────
+const ICONIFY_SUGGESTIONS: Record<string, string[]> = {
+  discord:    ["logos:discord-icon", "simple-icons:discord"],
+  steam:      ["logos:steam", "simple-icons:steam"],
+  spotify:    ["logos:spotify-icon", "simple-icons:spotify"],
+  obs:        ["logos:obs-studio", "simple-icons:obsstudio"],
+  github:     ["logos:github-icon", "simple-icons:github"],
+  vscode:     ["logos:visual-studio-code", "simple-icons:visualstudiocode"],
+  youtube:    ["logos:youtube-icon", "simple-icons:youtube"],
+  twitch:     ["logos:twitch", "simple-icons:twitch"],
+  telegram:   ["logos:telegram", "simple-icons:telegram"],
+  slack:      ["logos:slack-icon", "simple-icons:slack"],
+  zoom:       ["logos:zoom", "simple-icons:zoom"],
+  teams:      ["logos:microsoft-teams", "simple-icons:microsoftteams"],
+  notion:     ["logos:notion-icon", "simple-icons:notion"],
+  figma:      ["logos:figma", "simple-icons:figma"],
+  chatgpt:    ["logos:openai-icon", "simple-icons:openai"],
+  gmail:      ["logos:gmail", "simple-icons:gmail"],
+  whatsapp:   ["logos:whatsapp-icon", "simple-icons:whatsapp"],
+  x:          ["simple-icons:x", "logos:twitter"],
+  googlemeet: ["logos:google-meet", "simple-icons:googlemeet"],
+  vpn:        ["logos:wireguard", "mdi:vpn"],
+  hotkey:     ["mdi:keyboard", "mdi:keyboard-outline"],
+  script:     ["mdi:console", "mdi:terminal"],
+  url:        ["mdi:web", "mdi:earth"],
+  media:      ["mdi:play-circle", "mdi:music"],
+  system:     ["mdi:desktop-mac", "mdi:monitor-shimmer"],
+  app:        ["mdi:application", "mdi:apps"],
+  clipboard:  ["mdi:clipboard-text", "mdi:content-copy"],
+  type:       ["mdi:keyboard-variant", "mdi:text"],
+  notification: ["mdi:bell-ring", "mdi:bell-badge"],
+  wol:        ["mdi:power-plug", "mdi:lan-connect"],
+  multi:      ["mdi:layers-triple", "mdi:format-list-bulleted"],
+  browser:    ["logos:chrome", "logos:firefox"],
+  airdrop:    ["mdi:airdrop", "mdi:share-variant"],
+};
+
+function iconifyUrl(id: string, color = "#ffffff") {
+  const isLogo = id.startsWith("logos:") || id.startsWith("simple-icons:");
+  return isLogo
+    ? `https://api.iconify.design/${id.replace(":", "/")}.svg`
+    : `https://api.iconify.design/${id.replace(":", "/")}.svg?color=${encodeURIComponent(color)}`;
+}
+
+// ── Icon/Image Picker ─────────────────────────────────────────────────────────
+interface IconImagePickerProps {
+  value: string;
+  onChange: (v: string) => void;
+  actionType: string;
+  accentColor: string;
+}
+
+function IconImagePicker({ value, onChange, actionType, accentColor }: IconImagePickerProps) {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<string[]>([]);
+  const [searching, setSearching] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const suggestions = ICONIFY_SUGGESTIONS[actionType] ?? ["mdi:lightning-bolt", "mdi:star", "mdi:circle"];
+
+  // Debounced Iconify search
+  useEffect(() => {
+    if (!searchQuery.trim()) { setSearchResults([]); return; }
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    setSearching(true);
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`https://api.iconify.design/search?query=${encodeURIComponent(searchQuery)}&limit=24`);
+        const data = await res.json();
+        setSearchResults((data.icons ?? []).map((id: string) => id));
+      } catch { setSearchResults([]); }
+      setSearching(false);
+    }, 500);
+  }, [searchQuery]);
+
+  const handleFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const key = `sd-img-${Date.now()}`;
+      localStorage.setItem(key, reader.result as string);
+      onChange(`custom:${key}`);
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  };
+
+  const isCustom = value.startsWith("custom:");
+  const isIconify = value.startsWith("iconify:");
+  const isLucide = !isCustom && !isIconify;
+
+  const previewSrc = isIconify
+    ? iconifyUrl(value.slice(8), accentColor)
+    : isCustom
+    ? (localStorage.getItem(value.slice(7)) ?? "")
+    : "";
+
+  const iconsToShow = searchQuery.trim() ? searchResults : suggestions;
+
+  return (
+    <div className="space-y-3">
+      {/* Preview + upload row */}
+      <div className="flex items-center gap-3">
+        {/* Current preview */}
+        <div
+          className="w-16 h-16 rounded-xl flex items-center justify-center shrink-0"
+          style={{ background: "#1e1e1e", border: "1px solid rgba(255,255,255,0.1)" }}
+        >
+          {isIconify && (
+            <img src={previewSrc} width={36} height={36} alt="" style={{ objectFit: "contain" }} />
+          )}
+          {isCustom && previewSrc && (
+            <img src={previewSrc} width={40} height={40} alt="" style={{ objectFit: "contain", borderRadius: 4 }} />
+          )}
+          {(isLucide || (!previewSrc && (isCustom || isIconify))) && (
+            <span className="text-[10px] text-muted-foreground text-center px-1">{isLucide ? value : "?"}</span>
+          )}
+        </div>
+
+        <div className="flex-1 space-y-2">
+          <div className="flex gap-2">
+            {/* Upload button */}
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              className="flex-1 flex items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium border transition-colors hover:bg-accent"
+              style={{ borderColor: "rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.7)" }}
+            >
+              <Upload className="w-3.5 h-3.5" />
+              Upload image
+            </button>
+            {/* Reset to default */}
+            {(isCustom || isIconify) && (
+              <button
+                type="button"
+                onClick={() => onChange("Box")}
+                className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium border transition-colors hover:bg-accent"
+                style={{ borderColor: "rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.5)" }}
+                title="Reset to default icon"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* Lucide icon name display (read only, small) */}
+          {isLucide && (
+            <p className="text-[10px] text-muted-foreground">Using Lucide: <span className="text-foreground">{value}</span></p>
+          )}
+        </div>
+        <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
+      </div>
+
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={e => setSearchQuery(e.target.value)}
+          placeholder={`Search icons… (e.g. "${actionType}")`}
+          className="w-full rounded-lg bg-input border border-border pl-8 pr-3 py-2 text-sm placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-primary"
+        />
+        {searching && (
+          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-muted-foreground animate-pulse">
+            …
+          </span>
+        )}
+      </div>
+
+      {/* Icon grid */}
+      <div>
+        <p className="text-[10px] text-muted-foreground mb-1.5">
+          {searchQuery.trim() ? `${searchResults.length} results` : "Suggested for this action"}
+        </p>
+        {iconsToShow.length === 0 && !searching && searchQuery.trim() && (
+          <p className="text-xs text-muted-foreground py-2 text-center">No icons found</p>
+        )}
+        <div className="grid grid-cols-8 gap-1">
+          {iconsToShow.map((id) => {
+            const selected = value === `iconify:${id}`;
+            return (
+              <button
+                key={id}
+                type="button"
+                title={id}
+                onClick={() => onChange(`iconify:${id}`)}
+                className="rounded-lg p-1.5 flex items-center justify-center transition-all"
+                style={{
+                  background: selected ? `${accentColor}22` : "rgba(255,255,255,0.05)",
+                  border: selected ? `1.5px solid ${accentColor}` : "1.5px solid transparent",
+                  aspectRatio: "1",
+                }}
+              >
+                <img
+                  src={iconifyUrl(id, accentColor)}
+                  width={22}
+                  height={22}
+                  alt={id}
+                  style={{ objectFit: "contain" }}
+                  onError={(e) => { (e.currentTarget as HTMLImageElement).style.opacity = "0.3"; }}
+                />
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Lucide fallback */}
+      <details className="group">
+        <summary className="text-[10px] text-muted-foreground cursor-pointer hover:text-foreground select-none py-1">
+          ▸ Use a Lucide system icon instead
+        </summary>
+        <div className="mt-1.5">
+          <ScrollArea className="h-[140px]">
+            <div className="grid grid-cols-4 gap-1 pr-2">
+              {ICONS.map((i) => {
+                const Ic = i.icon;
+                const selected = value === i.name;
+                return (
+                  <button
+                    key={i.name}
+                    type="button"
+                    title={i.name}
+                    onClick={() => onChange(i.name)}
+                    className="rounded-lg p-2 flex flex-col items-center gap-1 transition-all"
+                    style={{
+                      background: selected ? `${accentColor}22` : "rgba(255,255,255,0.04)",
+                      border: selected ? `1.5px solid ${accentColor}` : "1.5px solid transparent",
+                    }}
+                  >
+                    <Ic className="w-4 h-4" style={{ color: selected ? accentColor : "rgba(255,255,255,0.6)" }} />
+                    <span className="text-[8px] text-muted-foreground truncate w-full text-center">{i.name}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </ScrollArea>
+        </div>
+      </details>
+    </div>
+  );
+}
 
 const formSchema = z.object({
   label: z.string().min(1, "Label is required").max(20),
@@ -525,68 +771,56 @@ export function ButtonEditorModal({ open, onOpenChange, profileId, button, folde
               )}
             />
 
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="color"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Color</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl>
-                        <SelectTrigger className="bg-input border-border">
-                          <SelectValue placeholder="Color" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {BUTTON_COLORS.map((color) => (
-                          <SelectItem key={color.id} value={color.id}>
-                            <div className="flex items-center gap-2">
-                              <div className={`w-3 h-3 rounded-full ${color.class}`} />
-                              {color.label}
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+            {/* Color accent row */}
+            <FormField
+              control={form.control}
+              name="color"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Accent Color</FormLabel>
+                  <div className="flex gap-2 flex-wrap">
+                    {BUTTON_COLORS.map((color) => (
+                      <button
+                        key={color.id}
+                        type="button"
+                        title={color.label}
+                        onClick={() => field.onChange(color.id)}
+                        className="w-8 h-8 rounded-lg transition-all"
+                        style={{
+                          background: color.hex,
+                          border: field.value === color.id ? `2px solid white` : `2px solid transparent`,
+                          boxShadow: field.value === color.id ? `0 0 0 1px ${color.hex}` : "none",
+                          outline: "none",
+                        }}
+                      />
+                    ))}
+                  </div>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
-              <FormField
-                control={form.control}
-                name="icon"
-                render={({ field }) => (
+            {/* Icon / Image picker */}
+            <FormField
+              control={form.control}
+              name="icon"
+              render={({ field }) => {
+                const watchedColor = form.watch("color");
+                const accentHex = BUTTON_COLORS.find(c => c.id === watchedColor)?.hex ?? "#06b6d4";
+                return (
                   <FormItem>
-                    <FormLabel>Icon</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl>
-                        <SelectTrigger className="bg-input border-border">
-                          <SelectValue placeholder="Icon" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <ScrollArea className="h-[200px]">
-                          {ICONS.map((i) => {
-                            const IconComponent = i.icon;
-                            return (
-                              <SelectItem key={i.name} value={i.name}>
-                                <div className="flex items-center gap-2">
-                                  <IconComponent className="w-4 h-4" />
-                                  {i.name}
-                                </div>
-                              </SelectItem>
-                            );
-                          })}
-                        </ScrollArea>
-                      </SelectContent>
-                    </Select>
+                    <FormLabel>Icon / Image</FormLabel>
+                    <IconImagePicker
+                      value={field.value}
+                      onChange={field.onChange}
+                      actionType={watchedActionType}
+                      accentColor={accentHex}
+                    />
                     <FormMessage />
                   </FormItem>
-                )}
-              />
-            </div>
+                );
+              }}
+            />
 
             {/* Folder assignment — only show when there are folders */}
             {folders.length > 0 && (
