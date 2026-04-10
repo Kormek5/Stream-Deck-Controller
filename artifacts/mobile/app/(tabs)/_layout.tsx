@@ -68,6 +68,15 @@ export default function TabLayout() {
           ),
         }}
       />
+      <Tabs.Screen
+        name="remote"
+        options={{
+          title: "Remote",
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="desktop-outline" size={size} color={color} />
+          ),
+        }}
+      />
     </Tabs>
   );
 }
